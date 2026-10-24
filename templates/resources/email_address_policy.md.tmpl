@@ -1,0 +1,53 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Organization"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Applying the policy to existing recipients
+
+Exchange applies a new or changed policy to the recipients created or modified afterwards. The existing recipients only get the new addresses when `Update-EmailAddressPolicy` runs:
+
+- With `apply_to_recipients = true`, the provider runs it after creating the policy, and after every apply that changes one of its settings.
+- With `apply_to_recipients` left out or `false`, it never runs: apply the policy yourself when you are ready, for example outside business hours, with `Update-EmailAddressPolicy -Identity "<name>"`.
+
+Setting `apply_to_recipients` alone, for example on an imported policy, applies nothing: the policy is applied at the next change of its settings.
+
+## Permissions
+
+The provider's account needs the **E-Mail Address Policies** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-EmailAddressPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-emailaddresspolicy?view=exchange-ps)
+- [`Get-EmailAddressPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-emailaddresspolicy?view=exchange-ps)
+- [`Set-EmailAddressPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-emailaddresspolicy?view=exchange-ps)
+- [`Remove-EmailAddressPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-emailaddresspolicy?view=exchange-ps)
+- [`Update-EmailAddressPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/update-emailaddresspolicy?view=exchange-ps)
+
+## Import
+
+Import using the policy name:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

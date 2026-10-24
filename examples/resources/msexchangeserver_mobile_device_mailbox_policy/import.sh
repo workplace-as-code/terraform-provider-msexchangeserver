@@ -1,0 +1,1 @@
+terraform import msexchangeserver_mobile_device_mailbox_policy.example "BYOD Strict"

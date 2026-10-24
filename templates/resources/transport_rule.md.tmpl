@@ -1,0 +1,45 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Mail flow"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs the **Transport Rules** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-TransportRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-transportrule?view=exchange-ps)
+- [`Get-TransportRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-transportrule?view=exchange-ps)
+- [`Set-TransportRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-transportrule?view=exchange-ps)
+- [`Remove-TransportRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-transportrule?view=exchange-ps)
+- [`Enable-TransportRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/enable-transportrule?view=exchange-ps)
+- [`Disable-TransportRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/disable-transportrule?view=exchange-ps)
+
+## Import
+
+Import using the exact rule name as it appears in Exchange:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

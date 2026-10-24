@@ -1,0 +1,1 @@
+terraform import msexchangeserver_organization_config.this "organization"

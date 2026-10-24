@@ -1,0 +1,43 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Organization"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs the **Retention Management** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-RetentionPolicyTag`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-retentionpolicytag?view=exchange-ps)
+- [`Get-RetentionPolicyTag`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-retentionpolicytag?view=exchange-ps)
+- [`Set-RetentionPolicyTag`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-retentionpolicytag?view=exchange-ps)
+- [`Remove-RetentionPolicyTag`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-retentionpolicytag?view=exchange-ps)
+
+## Import
+
+Import using the tag name:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

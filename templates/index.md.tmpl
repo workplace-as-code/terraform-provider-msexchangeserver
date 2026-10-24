@@ -1,0 +1,42 @@
+---
+page_title: "Provider: Microsoft Exchange Server"
+description: |-
+  Manage Exchange Server configuration as code: mail flow, accepted and remote domains, client access policies, email address policies, retention and organization settings.
+---
+
+# Microsoft Exchange Server Provider
+
+The Microsoft Exchange Server provider manages the configuration of an on-premises Exchange organization as code: mail flow rules, accepted and remote domains, Outlook on the web and mobile device policies, email address policies, retention policies and organization settings. Exchange Online is managed by a separate provider, [workplace-as-code/msexchangeonline](https://registry.terraform.io/providers/workplace-as-code/msexchangeonline/latest).
+
+The provider is **experimental**: see [Resources and availability](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/availability) for what has been tested.
+
+It opens an Exchange remote PowerShell session through scripts embedded in the provider binary. The machine running Terraform needs:
+
+- Windows, joined to the Active Directory domain of the Exchange organization, with Windows PowerShell 5.1 (built into Windows). No PowerShell module needs to be installed: the cmdlets come from the Exchange server.
+- An account with the **Organization Management** role group, or equivalent. The connection uses Kerberos with the FQDN of an Exchange server. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Example Usage
+
+{{ tffile "examples/provider/provider.tf" }}
+
+Edge Transport servers are managed with a separate provider block whose `role` is `Edge`: see [Edge Transport servers](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#edge-transport-servers).
+
+Every argument can also come from an `EXCHANGE_*` environment variable: `EXCHANGE_ROLE`, `EXCHANGE_SERVER`, `EXCHANGE_USERNAME` and `EXCHANGE_PASSWORD`. A value set in the provider block takes precedence over the environment.
+
+## Attributes left out of the configuration
+
+Every resource only manages the attributes set in its configuration. An attribute left out is never written: a new object gets the Exchange default, and an existing object keeps its current value, which is recorded in the state. Importing or adopting an object therefore never changes it until you set an attribute. The exception is the conditions and actions of `msexchangeserver_transport_rule`, which define the rule: a condition left out means the rule has none.
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Performance tuning
+
+The provider keeps a few PowerShell processes open during a run and reuses their Exchange connection. These environment variables tune that behavior:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `EXCHANGE_MAX_CONCURRENCY` | `4` | Maximum number of PowerShell processes running at once |
+| `EXCHANGE_SCRIPT_TIMEOUT` | `10m` | Maximum duration of one bridge call |
+| `EXCHANGE_BRIDGE_MODE` | `persistent` | `oneshot` starts a new PowerShell process for every call |
+| `EXCHANGE_WORKER_MAX_REQUESTS` | `200` | Requests served by a PowerShell process before it is replaced |
+| `EXCHANGE_BRIDGE_DIR` | unset | Run the bridge scripts from this folder instead of the embedded copy (script development only) |

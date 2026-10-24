@@ -1,0 +1,43 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Clients and devices"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs the **Recipient Policies** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-OwaMailboxPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-owamailboxpolicy?view=exchange-ps)
+- [`Get-OwaMailboxPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-owamailboxpolicy?view=exchange-ps)
+- [`Set-OwaMailboxPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-owamailboxpolicy?view=exchange-ps)
+- [`Remove-OwaMailboxPolicy`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-owamailboxpolicy?view=exchange-ps)
+
+## Import
+
+Import using the exact policy name as it appears in Exchange:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).
