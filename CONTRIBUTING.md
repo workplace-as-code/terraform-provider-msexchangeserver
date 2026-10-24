@@ -75,6 +75,30 @@ docs: update authentication guide
 chore: bump terraform-plugin-framework to 1.6.0
 ```
 
+## Releasing
+
+For maintainers. Each step goes through a pull request, except the tag.
+
+1. Run the integration tests on the lab from the code of `main`: `test/run.ps1` on a Mailbox server, `test/edge/run.ps1` on an Edge Transport server (locally and through WinRM).
+2. On the lab machine, note the versions they ran with, and copy them into the tested versions table of `templates/index.md.tmpl`, then run `make docs`:
+
+   ```powershell
+   terraform version
+   $PSVersionTable.PSVersion
+   Get-ExchangeServer | Format-Table Name, ServerRole, AdminDisplayVersion
+   ```
+
+3. In `CHANGELOG.md`, rename "Unreleased" to the version and the date, for example `## 0.1.1 (November 3, 2026)`.
+4. Merge the pull request, then tag `main` and push the tag:
+
+   ```bash
+   git switch main && git pull --ff-only
+   git tag v0.1.1
+   git push origin v0.1.1
+   ```
+
+5. The **Release** workflow builds, signs and publishes the release. Check that the Terraform Registry shows the new version a few minutes later.
+
 ## Code of Conduct
 
 Be respectful. We're all here to build something useful together.
