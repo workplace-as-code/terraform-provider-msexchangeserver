@@ -88,4 +88,5 @@ The first operation takes a few seconds longer: the provider opens the remote Po
 
 - [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication): requirements, service account, secrets
 - [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing): generate the configuration of the objects already in place
+- [Detect drift in CI](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/drift_detection): run `terraform plan` on a schedule to detect changes made outside Terraform
 - [Resources and availability](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/availability): every resource and what has been tested
