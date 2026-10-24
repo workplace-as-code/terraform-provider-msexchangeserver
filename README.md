@@ -82,19 +82,12 @@ The PowerShell bridge scripts are embedded in the provider binary: nothing else 
 
 ---
 
-## Architecture
-
-```
-Terraform ──▶ Go provider (Plugin Framework) ──▶ Windows PowerShell 5.1 + embedded bridge scripts ──▶ Exchange remote PowerShell (Kerberos) ──▶ Exchange Server
-```
-
----
-
 ## Documentation
 
 - [Getting Started](docs/guides/getting_started.md)
 - [Authentication](docs/guides/authentication.md)
 - [Import an existing organization](docs/guides/import_existing.md)
+- [Detect drift in CI](docs/guides/drift_detection.md)
 - [Resources and availability](docs/guides/availability.md)
 - [All Resources](docs/resources/)
 - [All Data Sources](docs/data-sources/)
