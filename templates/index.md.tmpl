@@ -10,6 +10,8 @@ The Microsoft Exchange Server provider manages the configuration of an on-premis
 
 The provider is **experimental**: see [Resources and availability](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/availability) for what has been tested.
 
+When something fails, start with the [Troubleshooting guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/troubleshooting).
+
 It opens an Exchange remote PowerShell session through scripts embedded in the provider binary. The machine running Terraform needs:
 
 - Windows, joined to the Active Directory domain of the Exchange organization, with Windows PowerShell 5.1 (built into Windows). No PowerShell module needs to be installed: the cmdlets come from the Exchange server.
