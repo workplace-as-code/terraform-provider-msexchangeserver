@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- New guides: troubleshooting (installation, Windows PowerShell, Kerberos and WinRM connections, Edge Transport servers, roles, timeouts, running a bridge script by hand) and drift detection in CI.
+- The provider page lists the Exchange Server versions and roles each release was tested with.
+
 ## 0.1.0 (October 24, 2026)
 
 First release, experimental.

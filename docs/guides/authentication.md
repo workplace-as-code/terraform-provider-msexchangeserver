@@ -100,3 +100,9 @@ These optional environment variables control how the provider runs PowerShell:
 | `EXCHANGE_WORKER_MAX_REQUESTS` | `200` | Number of operations a persistent PowerShell process serves before it is replaced. |
 
 In persistent mode, a process that hits an error, a timeout or a crash is discarded and the next operation starts a fresh one. The processes disconnect from Exchange when Terraform finishes.
+
+---
+
+## Troubleshooting
+
+Kerberos, WinRM, access and role errors are covered in the [Troubleshooting guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/troubleshooting).

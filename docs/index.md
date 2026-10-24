@@ -10,6 +10,8 @@ The Microsoft Exchange Server provider manages the configuration of an on-premis
 
 The provider is **experimental**: see [Resources and availability](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/availability) for what has been tested.
 
+When something fails, start with the [Troubleshooting guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/troubleshooting).
+
 It opens an Exchange remote PowerShell session through scripts embedded in the provider binary. The machine running Terraform needs:
 
 - Windows, joined to the Active Directory domain of the Exchange organization, with Windows PowerShell 5.1 (built into Windows). No PowerShell module needs to be installed: the cmdlets come from the Exchange server.
@@ -71,3 +73,13 @@ The provider keeps a few PowerShell processes open during a run and reuses their
 | `EXCHANGE_BRIDGE_MODE` | `persistent` | `oneshot` starts a new PowerShell process for every call |
 | `EXCHANGE_WORKER_MAX_REQUESTS` | `200` | Requests served by a PowerShell process before it is replaced |
 | `EXCHANGE_BRIDGE_DIR` | unset | Run the bridge scripts from this folder instead of the embedded copy (script development only) |
+
+## Tested versions
+
+The integration tests create, update, import and destroy every resource type in an Exchange Server lab, from a domain-joined Windows machine:
+
+| Provider | Exchange Server | Server roles | PowerShell | Lab run |
+|---|---|---|---|---|
+| 0.1.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 | October 19, 2026 |
+
+That lab run predates version 0.1.0 by a few changes; the next release will be tested on its own code. Exchange Server 2016 and 2019 use the same remote PowerShell endpoint and should work, but are not tested: report any difference in an issue.
