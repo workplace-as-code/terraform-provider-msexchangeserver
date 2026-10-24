@@ -2,8 +2,9 @@
 
 Manage an on-premises Exchange Server organization as code with Terraform: mail flow rules, accepted and remote domains, Outlook on the web and mobile device policies, email address policies, retention and organization settings.
 
+[![CI](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/actions/workflows/ci.yml)
+[![Terraform Registry](https://img.shields.io/github/v/release/workplace-as-code/terraform-provider-msexchangeserver?label=registry&logo=terraform&color=7B42BC)](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Terraform Registry](https://img.shields.io/badge/registry-workplace--as--code%2Fmsexchangeserver-7B42BC?logo=terraform)](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver)
 
 - Review every change with `terraform plan` before it reaches Exchange
 - Detect configuration drift made in the Exchange admin center or the Exchange Management Shell
