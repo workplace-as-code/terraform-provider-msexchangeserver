@@ -1,5 +1,7 @@
 # Changelog
 
+From the next version on, the release notes are generated from the pull request titles: see the [GitHub releases](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/releases). This file keeps the history up to version 0.1.1.
+
 ## 0.1.1 (October 25, 2026)
 
 ### Bug fixes
