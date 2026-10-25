@@ -35,6 +35,14 @@ $BridgeNoConfirm = @{ Confirm = $false }
 
 $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else { "Mailbox" }
 
+# Exchange answers in the language of the session. The scripts recognize errors
+# by their English text ("couldn't be found", ...): on a French machine a missing
+# object would be reported as a failure. Ask for English, whatever the OS: here
+# for the local snap-in (Edge), and in the session options of the remote
+# sessions below, which otherwise inherit the culture of this machine.
+[System.Globalization.CultureInfo]::CurrentCulture   = [System.Globalization.CultureInfo]::GetCultureInfo("en-US")
+[System.Globalization.CultureInfo]::CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo("en-US")
+
 # The connection runs in a child scope. This file is dot-sourced into every
 # bridge script: a variable assigned here would overwrite the script's own
 # parameter of the same name, without regard to case ($name, set to the snap-in
@@ -81,7 +89,8 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
             # The Edge server is in a workgroup: Negotiate (NTLM) with a local
             # account. Over HTTP, WinRM on this machine must trust the server
             # (TrustedHosts); the traffic is still encrypted by Negotiate.
-            $session = New-PSSession -ComputerName $Server -Credential $cred -Authentication Negotiate
+            $edgeOpts = New-PSSessionOption -Culture en-US -UICulture en-US
+            $session = New-PSSession -ComputerName $Server -Credential $cred -Authentication Negotiate -SessionOption $edgeOpts
             $name = Invoke-Command -Session $session -ScriptBlock {
                 param($Filter)
                 $s = Get-PSSnapin -Registered | Where-Object ([scriptblock]::Create($Filter)) | Select-Object -First 1
@@ -96,7 +105,7 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
     }
 
     # SkipCA/CNCheck allows self-signed certs common on internal Exchange servers
-    $sessionOpts = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+    $sessionOpts = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck -Culture en-US -UICulture en-US
 
     try {
         $session = New-PSSession `
