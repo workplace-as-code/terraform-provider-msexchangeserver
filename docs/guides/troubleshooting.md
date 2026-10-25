@@ -80,9 +80,9 @@ Get-User svc-terraform | Format-List RemotePowerShellEnabled
 
 **`The term 'New-TransportRule' is not recognized` (or any other Exchange cmdlet).** Exchange remote PowerShell only contains the cmdlets that the account's management roles allow: a missing role looks like a missing cmdlet. Give the account the role that contains the cmdlet, or the Organization Management role group. The provider adds this advice to the error.
 
-## Known Issue: Machines Whose Language Is Not English
+## Messages in English
 
-The provider recognizes a missing object by the English text of the Exchange error. Exchange may answer in the language of the machine that runs Terraform: a missing object is then reported as an error, for example after the object was deleted outside Terraform. This is tracked in [issue #18](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/issues/18). Until it is fixed, run Terraform under an account whose Windows display language is English, and report what you see in the issue.
+Exchange answers in the language of the PowerShell session. The provider recognizes some errors, such as a missing object, by their English text, so it opens its sessions in English (`en-US`), whatever the display language of the machine that runs Terraform. Exchange errors are therefore always in English: search for them as they are.
 
 ## Timeouts and Load
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug fixes
+
+- A missing object is recognized on Windows machines whose display language is not English: the provider opens its Exchange sessions in English. Before, Exchange answered in the language of the machine (for example "introuvable" in French), and an object deleted outside Terraform made every plan fail instead of being removed from the state.
+
 ### Documentation
 
 - New guides: troubleshooting (installation, Windows PowerShell, Kerberos and WinRM connections, Edge Transport servers, roles, timeouts, running a bridge script by hand) and drift detection in CI.
