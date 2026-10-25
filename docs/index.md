@@ -6,6 +6,8 @@ description: |-
 
 # Microsoft Exchange Server Provider
 
+~> **Use at your own risk.** This is a community project, maintained on a best-effort basis and provided as is, without warranty (MIT license). Each release is tested by hand on a lab before it is published; nothing is tested continuously against an Exchange Server organization. Run `terraform plan` and try your configuration on a non-production organization before applying it to production.
+
 The Microsoft Exchange Server provider manages the configuration of an on-premises Exchange organization as code: mail flow rules, accepted and remote domains, Outlook on the web and mobile device policies, email address policies, retention policies and organization settings. Exchange Online is managed by a separate provider, [workplace-as-code/msexchangeonline](https://registry.terraform.io/providers/workplace-as-code/msexchangeonline/latest).
 
 The provider is **experimental**: see [Resources and availability](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/availability) for what has been tested.
@@ -78,8 +80,8 @@ The provider keeps a few PowerShell processes open during a run and reuses their
 
 The integration tests create, update, import and destroy every resource type in an Exchange Server lab, from a domain-joined Windows machine:
 
-| Provider | Exchange Server | Server roles | PowerShell | Lab run |
-|---|---|---|---|---|
-| 0.1.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 | October 19, 2026 |
+| Provider | Terraform | Exchange Server | Server roles | PowerShell | Lab run |
+|---|---|---|---|---|---|
+| 0.1.1 | 1.17.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 (Windows Server 2022) | October 25, 2026 |
 
-That lab run predates version 0.1.0 by a few changes; the next release will be tested on its own code. Exchange Server 2016 and 2019 use the same remote PowerShell endpoint and should work, but are not tested: report any difference in an issue.
+Exchange Server 2016 and 2019 use the same remote PowerShell endpoint and should work, but are not tested: report any difference in an issue.
