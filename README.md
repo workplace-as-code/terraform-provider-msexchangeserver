@@ -6,6 +6,9 @@ Manage an on-premises Exchange Server organization as code with Terraform: mail 
 [![Terraform Registry](https://img.shields.io/github/v/release/workplace-as-code/terraform-provider-msexchangeserver?label=registry&logo=terraform&color=7B42BC)](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+> [!WARNING]
+> **Use at your own risk.** This is a community project, maintained on a best-effort basis and provided as is, without warranty (MIT license). Each release is tested by hand on a lab before it is published; nothing is tested continuously against an Exchange Server organization. Run `terraform plan` and try your configuration on a non-production organization before applying it to production.
+
 - Review every change with `terraform plan` before it reaches Exchange
 - Detect configuration drift made in the Exchange admin center or the Exchange Management Shell
 - Adopt existing objects safely: attributes left out of the configuration are never written
