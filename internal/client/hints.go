@@ -22,6 +22,12 @@ var hints = []struct {
 			"(Get-User <account> | Format-List RemotePowerShellEnabled).",
 	},
 	{
+		[]string{"isn't assigned to any management roles"},
+		"Exchange opened the session but the account has no Exchange permission. Add the account to an Exchange role group " +
+			"(Organization Management, or one with the roles listed in the Permissions section of each resource). With integrated " +
+			"authentication, the account is the one Terraform runs as: the CI runner service or the scheduled task.",
+	},
+	{
 		[]string{"is not recognized as"},
 		"Exchange remote PowerShell only exposes the cmdlets that the account's management roles allow: give the account " +
 			"the role that contains this cmdlet, or the Organization Management role group.",

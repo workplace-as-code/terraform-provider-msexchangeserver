@@ -80,6 +80,8 @@ Get-User svc-terraform | Format-List RemotePowerShellEnabled
 
 ## Permissions
 
+**`The user "<domain>/<OU>/<account>" isn't assigned to any management roles`** (`AuthZ-CmdletAccessDeniedException`). The Kerberos session opened, but the account is in no Exchange role group. Exchange names the account it saw: with integrated authentication, it is the account of the CI runner service or the scheduled task, not yours. Add that account to Organization Management, or to a role group with the roles your resources need. The provider adds this advice to the error.
+
 **`The term 'New-TransportRule' is not recognized` (or any other Exchange cmdlet).** Exchange remote PowerShell only contains the cmdlets that the account's management roles allow: a missing role looks like a missing cmdlet. Give the account the role that contains the cmdlet, or the Organization Management role group. The provider adds this advice to the error.
 
 ## Messages in English
