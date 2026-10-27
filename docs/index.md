@@ -17,7 +17,7 @@ When something fails, start with the [Troubleshooting guide](https://registry.te
 It opens an Exchange remote PowerShell session through scripts embedded in the provider binary. The machine running Terraform needs:
 
 - Windows, joined to the Active Directory domain of the Exchange organization, with Windows PowerShell 5.1 (built into Windows). No PowerShell module needs to be installed: the cmdlets come from the Exchange server.
-- An account with the **Organization Management** role group, or equivalent. The connection uses Kerberos with the FQDN of an Exchange server. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+- An account with the **Organization Management** role group, or equivalent. The connection uses Kerberos with the FQDN of an Exchange server, with the account's password or, with `auth_method = "integrated"`, as the account Terraform runs as (a CI runner service or a scheduled task). See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Example Usage
 
@@ -48,7 +48,7 @@ resource "msexchangeserver_remote_domain" "partner" {
 
 Edge Transport servers are managed with a separate provider block whose `role` is `Edge`: see [Edge Transport servers](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#edge-transport-servers).
 
-Every argument can also come from an `EXCHANGE_*` environment variable: `EXCHANGE_ROLE`, `EXCHANGE_SERVER`, `EXCHANGE_USERNAME` and `EXCHANGE_PASSWORD`. A value set in the provider block takes precedence over the environment.
+Every argument can also come from an `EXCHANGE_*` environment variable: `EXCHANGE_ROLE`, `EXCHANGE_SERVER`, `EXCHANGE_AUTH_METHOD`, `EXCHANGE_USERNAME` and `EXCHANGE_PASSWORD`. A value set in the provider block takes precedence over the environment.
 
 ## Attributes left out of the configuration
 
@@ -59,10 +59,11 @@ Every resource only manages the attributes set in its configuration. An attribut
 
 ### Optional
 
-- `password` (String, Sensitive) Password of `username`. Can also be set via the `EXCHANGE_PASSWORD` environment variable.
+- `auth_method` (String) How the provider authenticates with the `Mailbox` role. `password` (default): `username` and `password`. `integrated`: Kerberos with the Windows identity of the process running Terraform, for example a CI runner service or a scheduled task on a domain-joined machine; `username` and `password` must then be left unset. Not available with the `Edge` role. Can also be set via the `EXCHANGE_AUTH_METHOD` environment variable.
+- `password` (String, Sensitive) Password of `username`. Not used with `auth_method = "integrated"`. Can also be set via the `EXCHANGE_PASSWORD` environment variable.
 - `role` (String) Role of the server the provider connects to: `Mailbox` (default) manages the organization; `Edge` manages an Edge Transport server, whose resources are limited to its own settings. Use one provider block per Edge server, with an alias. Can also be set via the `EXCHANGE_ROLE` environment variable.
 - `server` (String) FQDN of the Exchange server. With the `Mailbox` role, the FQDN registered in Active Directory (e.g. `exch01.contoso.local`): the connection uses Kerberos, which fails with an IP address, a short name or a load balancer name. Required, either here or via the `EXCHANGE_SERVER` environment variable. With the `Edge` role, the name WinRM reaches the Edge server with; leave it out when Terraform runs on the Edge server itself.
-- `username` (String) With the `Mailbox` role, the Active Directory account used for Exchange Server, as `CONTOSO\svc-terraform` or `svc-terraform@contoso.local`. With the `Edge` role and a `server`, a local administrator of the Edge server, as `EDGE01\Administrator`. Required in both cases, either here or via the `EXCHANGE_USERNAME` environment variable.
+- `username` (String) With the `Mailbox` role and `auth_method = "password"` (default), the Active Directory account used for Exchange Server, as `CONTOSO\svc-terraform` or `svc-terraform@contoso.local`. With the `Edge` role and a `server`, a local administrator of the Edge server, as `EDGE01\Administrator`. Required in both cases, either here or via the `EXCHANGE_USERNAME` environment variable.
 
 ## Performance tuning
 

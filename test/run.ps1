@@ -27,7 +27,13 @@
 
 .PARAMETER Username
     Account with the Organization Management role group, as DOMAIN\user or
-    user@domain. The password is asked for.
+    user@domain. The password is asked for. Use -Username or -Integrated.
+
+.PARAMETER Integrated
+    Integrated Windows authentication (auth_method = "integrated"): the
+    provider connects as the account running this script, with no password.
+    Run it from a session of that account (a service or scheduled task, or
+    runas). Use -Username or -Integrated.
 
 .PARAMETER ProviderPath
     Path of terraform-provider-msexchangeserver.exe. Defaults to the file next
@@ -45,10 +51,14 @@
 
 .EXAMPLE
     .\run.ps1 -Server exch01.contoso.local -Username CONTOSO\administrator
+
+.EXAMPLE
+    .\run.ps1 -Server exch01.contoso.local -Integrated
 #>
 param(
     [Parameter(Mandatory = $true)] [string]$Server,
-    [Parameter(Mandatory = $true)] [string]$Username,
+    [string]$Username,
+    [switch]$Integrated,
     [ValidateSet("check", "all")] [string]$Step = "all",
     [string]$ProviderPath = (Join-Path $PSScriptRoot "terraform-provider-msexchangeserver.exe"),
     [switch]$OneShot,
@@ -173,7 +183,9 @@ function Reset-State {
 
 $pushed = $false
 try {
-    Write-Log "run.ps1 -Server $Server -Username $Username -Step $Step, $(Get-Date -Format o)"
+    $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
+    $authText = if ($Integrated) { "-Integrated (as $account)" } else { "-Username $Username" }
+    Write-Log "run.ps1 -Server $Server $authText -Step $Step, $(Get-Date -Format o)"
     Write-Log "PowerShell $($PSVersionTable.PSVersion) $($PSVersionTable.PSEdition), $([Environment]::OSVersion.VersionString)"
 
     # -----------------------------------------------------------------------
@@ -187,16 +199,24 @@ try {
     }
     Write-Pass "Provider: $ProviderPath"
     if (-not (Get-Command powershell.exe -ErrorAction SilentlyContinue)) { Stop-Test "powershell.exe (Windows PowerShell 5.1) not found" }
+    if ([bool]$Username -eq [bool]$Integrated) { Stop-Test "Use either -Username (password asked for) or -Integrated (the account running this script)" }
     if ($Server -notmatch '\.' -or $Server -match '^\d+(\.\d+){3}$') {
         Stop-Test "-Server must be the FQDN of the Exchange server (Kerberos does not work with an IP address or a short name)"
     }
 
     # -----------------------------------------------------------------------
     Write-Step "Kerberos connection to http://$Server/PowerShell/"
-    $cred = Get-Credential -UserName $Username -Message "Exchange Server account (Organization Management)"
-    if ($null -eq $cred) { Stop-Test "No credential given" }
+    # Integrated: no credential, New-PSSession uses the Kerberos ticket of this session
+    $credential = @{}
+    if ($Integrated) {
+        Write-Info "Integrated authentication as $account"
+    } else {
+        $cred = Get-Credential -UserName $Username -Message "Exchange Server account (Organization Management)"
+        if ($null -eq $cred) { Stop-Test "No credential given" }
+        $credential = @{ Credential = $cred }
+    }
     $session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "http://$Server/PowerShell/" `
-        -Authentication Kerberos -Credential $cred
+        -Authentication Kerberos @credential
     try {
         # The Exchange endpoint runs remote commands without the PowerShell
         # language (NoLanguage mode): only plain cmdlet calls, results processed here.
@@ -228,8 +248,14 @@ try {
     $env:TF_IN_AUTOMATION      = "1"
     $env:CHECKPOINT_DISABLE    = "1"
     $env:EXCHANGE_SERVER       = $Server
-    $env:EXCHANGE_USERNAME     = $Username
-    $env:EXCHANGE_PASSWORD     = $cred.GetNetworkCredential().Password
+    if ($Integrated) {
+        $env:EXCHANGE_AUTH_METHOD = "integrated"
+        Remove-Item Env:EXCHANGE_USERNAME, Env:EXCHANGE_PASSWORD -ErrorAction SilentlyContinue
+    } else {
+        $env:EXCHANGE_AUTH_METHOD = "password"
+        $env:EXCHANGE_USERNAME    = $Username
+        $env:EXCHANGE_PASSWORD    = $cred.GetNetworkCredential().Password
+    }
     $env:TF_VAR_default_domain = "$($default.Name)"
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
@@ -252,7 +278,7 @@ try {
     if ($Step -eq "check") {
         Write-Host ""
         Write-Host "Check passed: the provider connects to $Server and reads the organization." -ForegroundColor Green
-        Write-Host "Run the full cycle with: .\run.ps1 -Server $Server -Username $Username"
+        Write-Host "Run the full cycle with: .\run.ps1 -Server $Server $(if ($Integrated) { '-Integrated' } else { "-Username $Username" })"
         return
     }
 
@@ -350,7 +376,8 @@ try {
     Write-Host "  Data sources: accepted_domain, accepted_domains, organization_config"
 } finally {
     if ($pushed) { Pop-Location }
-    Remove-Item Env:EXCHANGE_PASSWORD -ErrorAction SilentlyContinue
+    # The other test scripts of this window (edge, transport) do not set the method
+    Remove-Item Env:EXCHANGE_PASSWORD, Env:EXCHANGE_AUTH_METHOD -ErrorAction SilentlyContinue
     Write-Host ""
     Write-Host "Log: $Log"
 }

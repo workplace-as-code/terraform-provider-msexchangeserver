@@ -16,9 +16,16 @@ var hints = []struct {
 	},
 	{
 		[]string{"Access is denied"},
-		"The account cannot open an Exchange remote PowerShell session. Check its password, that it is a member of the " +
+		"The account cannot open an Exchange remote PowerShell session. Check its password (with integrated authentication, " +
+			"check which account Terraform runs as: the CI runner service or the scheduled task), that it is a member of the " +
 			"Organization Management role group (or equivalent), and that remote PowerShell is enabled for it " +
 			"(Get-User <account> | Format-List RemotePowerShellEnabled).",
+	},
+	{
+		[]string{"isn't assigned to any management roles"},
+		"Exchange opened the session but the account has no Exchange permission. Add the account to an Exchange role group " +
+			"(Organization Management, or one with the roles listed in the Permissions section of each resource). With integrated " +
+			"authentication, the account is the one Terraform runs as: the CI runner service or the scheduled task.",
 	},
 	{
 		[]string{"is not recognized as"},

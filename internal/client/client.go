@@ -32,6 +32,18 @@ const EnvBridgePassword = "EXCHANGE_BRIDGE_PASSWORD"
 // need a -Role parameter only to pass it on to auth.ps1.
 const EnvBridgeRole = "EXCHANGE_BRIDGE_ROLE"
 
+// EnvBridgeAuthMethod tells auth.ps1 how to authenticate. It is not a secret.
+const EnvBridgeAuthMethod = "EXCHANGE_BRIDGE_AUTH_METHOD"
+
+// Authentication methods.
+const (
+	// AuthPassword connects with username and password (EXCHANGE_BRIDGE_PASSWORD).
+	AuthPassword = "password"
+	// AuthIntegrated connects with Kerberos under the Windows identity of the
+	// process running Terraform: a CI runner service or a scheduled task.
+	AuthIntegrated = "integrated"
+)
+
 // Server roles the provider connects to.
 const (
 	// RoleMailbox is a Mailbox server, reached through Exchange remote
@@ -73,6 +85,8 @@ type Config struct {
 	Username string
 	Password string
 	Role     string // RoleMailbox (default) or RoleEdge
+	// AuthMethod is AuthPassword (default, also when empty) or AuthIntegrated.
+	AuthMethod string
 }
 
 // Client is the main provider client.
@@ -237,9 +251,34 @@ func (c *Client) buildArgs(scriptPath string, params map[string]string) (string,
 	return binary, args
 }
 
-// buildEnv returns the parent environment plus the secrets and role for auth.ps1.
+// buildEnv returns the parent environment plus the secrets, role and
+// authentication method for auth.ps1. The parent's own values of these
+// variables (left over from a manual bridge test) are dropped, so only the
+// client's reach PowerShell. With integrated authentication no password is
+// passed at all: the process identity connects.
 func (c *Client) buildEnv() []string {
-	return append(os.Environ(), EnvBridgePassword+"="+c.config.Password, EnvBridgeRole+"="+c.Role())
+	env := make([]string, 0, len(os.Environ())+3)
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		switch strings.ToUpper(name) { // Windows variable names ignore case
+		case EnvBridgePassword, EnvBridgeRole, EnvBridgeAuthMethod:
+			continue
+		}
+		env = append(env, kv)
+	}
+	env = append(env, EnvBridgeRole+"="+c.Role(), EnvBridgeAuthMethod+"="+c.AuthMethod())
+	if c.AuthMethod() == AuthPassword {
+		env = append(env, EnvBridgePassword+"="+c.config.Password)
+	}
+	return env
+}
+
+// AuthMethod returns how the client authenticates.
+func (c *Client) AuthMethod() string {
+	if c.config.AuthMethod == "" {
+		return AuthPassword
+	}
+	return c.config.AuthMethod
 }
 
 // Role returns the role of the server the client connects to.

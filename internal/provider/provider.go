@@ -31,6 +31,8 @@ type exchangeProviderModel struct {
 	Username types.String `tfsdk:"username"`
 	Password types.String `tfsdk:"password"`
 	Role     types.String `tfsdk:"role"`
+
+	AuthMethod types.String `tfsdk:"auth_method"`
 }
 
 // New returns a factory function that creates the provider.
@@ -61,15 +63,23 @@ func (p *exchangeProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 					"a short name or a load balancer name. Required, either here or via the `EXCHANGE_SERVER` environment variable. With the `Edge` role, the name WinRM reaches the Edge server with; " +
 					"leave it out when Terraform runs on the Edge server itself.",
 			},
+			"auth_method": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "How the provider authenticates with the `Mailbox` role. `password` (default): `username` and `password`. " +
+					"`integrated`: Kerberos with the Windows identity of the process running Terraform, for example a CI runner service or a scheduled task " +
+					"on a domain-joined machine; `username` and `password` must then be left unset. Not available with the `Edge` role. " +
+					"Can also be set via the `EXCHANGE_AUTH_METHOD` environment variable.",
+				Validators: []validator.String{stringvalidator.OneOfCaseInsensitive(client.AuthPassword, client.AuthIntegrated)},
+			},
 			"username": schema.StringAttribute{
 				Optional: true,
-				MarkdownDescription: "With the `Mailbox` role, the Active Directory account used for Exchange Server, as `CONTOSO\\svc-terraform` or `svc-terraform@contoso.local`. With the `Edge` role and a `server`, " +
+				MarkdownDescription: "With the `Mailbox` role and `auth_method = \"password\"` (default), the Active Directory account used for Exchange Server, as `CONTOSO\\svc-terraform` or `svc-terraform@contoso.local`. With the `Edge` role and a `server`, " +
 					"a local administrator of the Edge server, as `EDGE01\\Administrator`. Required in both cases, either here or via the `EXCHANGE_USERNAME` environment variable.",
 			},
 			"password": schema.StringAttribute{
 				Optional:            true,
 				Sensitive:           true,
-				MarkdownDescription: "Password of `username`. Can also be set via the `EXCHANGE_PASSWORD` environment variable.",
+				MarkdownDescription: "Password of `username`. Not used with `auth_method = \"integrated\"`. Can also be set via the `EXCHANGE_PASSWORD` environment variable.",
 			},
 		},
 	}
@@ -82,24 +92,8 @@ func (p *exchangeProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	cfg := client.Config{
-		Server:   envOrConfig("EXCHANGE_SERVER", config.Server),
-		Username: envOrConfig("EXCHANGE_USERNAME", config.Username),
-		Password: envOrConfig("EXCHANGE_PASSWORD", config.Password),
-		Role:     normalizeRole(envOrConfig("EXCHANGE_ROLE", config.Role)),
-	}
-	if cfg.Role == "" {
-		resp.Diagnostics.AddError("Invalid role", "role must be \"Mailbox\" or \"Edge\". Check the provider block and EXCHANGE_ROLE.")
-		return
-	}
-	// A local Edge Transport server needs no connection settings: Terraform
-	// runs on it with the current Windows account.
-	if cfg.Server == "" && cfg.Role == client.RoleMailbox {
-		resp.Diagnostics.AddError("Missing server", "server is required. Set it in the provider block or via EXCHANGE_SERVER.")
-	}
-	if cfg.Username == "" && cfg.Server != "" {
-		resp.Diagnostics.AddError("Missing username", "username is required. Set it in the provider block or via EXCHANGE_USERNAME.")
-	}
+	cfg, diags := resolveConfig(config)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

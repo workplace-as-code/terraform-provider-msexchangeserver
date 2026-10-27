@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,4 +75,68 @@ func TestAuthLeaksNoVariable(t *testing.T) {
 			t.Errorf("auth.ps1 assigns $%s in the scope of the bridge scripts: move it into the connection block", name)
 		}
 	}
+}
+
+// TestAuthConnects checks how auth.ps1 opens the Exchange session with each
+// authentication method: integrated authentication passes no credential, so
+// New-PSSession uses the identity of the process.
+func TestAuthConnects(t *testing.T) {
+	shell, err := exec.LookPath("powershell.exe")
+	if err != nil {
+		if shell, err = exec.LookPath("pwsh"); err != nil {
+			t.Skip("neither powershell.exe nor pwsh is installed")
+		}
+	}
+	type result struct {
+		Connected *struct {
+			ConnectionUri  string
+			Authentication string
+			Credential     bool
+		} `json:"connected"`
+		Error string `json:"error"`
+		User  string `json:"user"`
+	}
+	connect := func(t *testing.T, name string) result {
+		t.Helper()
+		out, err := exec.Command(shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+			"-File", "testdata/auth_connect.ps1", "-Script", "../../bridge/scripts/auth.ps1", "-Case", name).CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+		var r result
+		if err := json.Unmarshal(out, &r); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+		return r
+	}
+
+	t.Run("password", func(t *testing.T) {
+		r := connect(t, "password")
+		if r.Error != "" || r.Connected == nil || !r.Connected.Credential || r.Connected.Authentication != "Kerberos" ||
+			r.Connected.ConnectionUri != "http://exch01.contoso.local/PowerShell/" {
+			t.Errorf("got %+v, error %q", r.Connected, r.Error)
+		}
+	})
+	t.Run("password-nouser", func(t *testing.T) {
+		if r := connect(t, "password-nouser"); !strings.Contains(r.Error, "username is required") {
+			t.Errorf("error = %q", r.Error)
+		}
+	})
+	t.Run("integrated", func(t *testing.T) {
+		r := connect(t, "integrated")
+		if r.Error != "" || r.Connected == nil || r.Connected.Credential || r.Connected.Authentication != "Kerberos" {
+			t.Errorf("got %+v, error %q: want Kerberos without a credential", r.Connected, r.Error)
+		}
+	})
+	t.Run("integrated-fails", func(t *testing.T) {
+		r := connect(t, "integrated-fails")
+		if r.User == "" || !strings.Contains(r.Error, `\`+r.User+":") {
+			t.Errorf("error does not name the account %q: %s", r.User, r.Error)
+		}
+		for _, want := range []string{" as ", "FQDN", "role group", "Kerberos error"} {
+			if !strings.Contains(r.Error, want) {
+				t.Errorf("error lacks %q: %s", want, r.Error)
+			}
+		}
+	})
 }

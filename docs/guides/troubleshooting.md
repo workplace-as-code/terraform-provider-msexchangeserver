@@ -47,7 +47,7 @@ The provider runs its scripts with `-ExecutionPolicy Bypass` for its own process
 
 ## Connection
 
-Connection errors start with `Failed to connect to Exchange Server (<server>):`. Test the connection outside Terraform first, with the commands of the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+Connection errors start with `Failed to connect to Exchange Server (<server>):`, or `Failed to connect to Exchange Server (<server>) as <account>:` with integrated authentication, which names the Windows account Terraform ran as. Test the connection outside Terraform first, with the commands of the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 **Kerberos errors** (the message mentions `WinRM` and `Kerberos`). Kerberos needs, all at once:
 
@@ -55,6 +55,8 @@ Connection errors start with `Failed to connect to Exchange Server (<server>):`.
 - `server` set to the **FQDN of an Exchange server as registered in Active Directory**: an IP address, a short name, or a DNS alias or load balancer name fails;
 - access to a domain controller (port 88) and to the Exchange server (port 80);
 - clocks within five minutes of the domain controllers.
+
+**Integrated authentication: the wrong account, or no rights.** With `auth_method = "integrated"`, the account is the one the CI runner service or scheduled task runs as, not yours: compare the account in the error with the one you expected, check its Exchange role group, and that `klist`, run as that account, shows its tickets. A scheduled task set to **Do not store password** has no network credentials, so no Kerberos ticket: store the password in the task. See [Integrated Windows authentication](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#integrated-windows-authentication).
 
 **`Access is denied`.** The account cannot open the session. Check its password, its membership of the **Organization Management** role group (or an equivalent), and that remote PowerShell is enabled for it:
 
@@ -77,6 +79,8 @@ Get-User svc-terraform | Format-List RemotePowerShellEnabled
 **Exchange refuses changes to accepted or remote domains on Edge.** While the Edge server is subscribed to EdgeSync, these domains are copied from the organization: manage them with the provider block of the organization instead.
 
 ## Permissions
+
+**`The user "<domain>/<OU>/<account>" isn't assigned to any management roles`** (`AuthZ-CmdletAccessDeniedException`). The Kerberos session opened, but the account is in no Exchange role group. Exchange names the account it saw: with integrated authentication, it is the account of the CI runner service or the scheduled task, not yours. Add that account to Organization Management, or to a role group with the roles your resources need. The provider adds this advice to the error.
 
 **`The term 'New-TransportRule' is not recognized` (or any other Exchange cmdlet).** Exchange remote PowerShell only contains the cmdlets that the account's management roles allow: a missing role looks like a missing cmdlet. Give the account the role that contains the cmdlet, or the Organization Management role group. The provider adds this advice to the error.
 
