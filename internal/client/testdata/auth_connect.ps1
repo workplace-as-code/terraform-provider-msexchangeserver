@@ -39,4 +39,4 @@ try {
 } catch {
     $errorText = "$_"
 }
-ConvertTo-Json -Compress -InputObject @{ connected = $global:Connected; error = $errorText }
+ConvertTo-Json -Compress -InputObject @{ connected = $global:Connected; error = $errorText; user = [Environment]::UserName }

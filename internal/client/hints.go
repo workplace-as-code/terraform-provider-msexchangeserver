@@ -16,7 +16,8 @@ var hints = []struct {
 	},
 	{
 		[]string{"Access is denied"},
-		"The account cannot open an Exchange remote PowerShell session. Check its password, that it is a member of the " +
+		"The account cannot open an Exchange remote PowerShell session. Check its password (with integrated authentication, " +
+			"check which account Terraform runs as: the CI runner service or the scheduled task), that it is a member of the " +
 			"Organization Management role group (or equivalent), and that remote PowerShell is enabled for it " +
 			"(Get-User <account> | Format-List RemotePowerShellEnabled).",
 	},

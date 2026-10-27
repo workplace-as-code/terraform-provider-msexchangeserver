@@ -94,6 +94,7 @@ func TestAuthConnects(t *testing.T) {
 			Credential     bool
 		} `json:"connected"`
 		Error string `json:"error"`
+		User  string `json:"user"`
 	}
 	connect := func(t *testing.T, name string) result {
 		t.Helper()
@@ -129,6 +130,9 @@ func TestAuthConnects(t *testing.T) {
 	})
 	t.Run("integrated-fails", func(t *testing.T) {
 		r := connect(t, "integrated-fails")
+		if r.User == "" || !strings.Contains(r.Error, `\`+r.User+":") {
+			t.Errorf("error does not name the account %q: %s", r.User, r.Error)
+		}
 		for _, want := range []string{" as ", "FQDN", "role group", "Kerberos error"} {
 			if !strings.Contains(r.Error, want) {
 				t.Errorf("error lacks %q: %s", want, r.Error)

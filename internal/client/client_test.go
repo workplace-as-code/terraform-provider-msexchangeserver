@@ -70,13 +70,16 @@ func TestRoleIsPassedToTheBridge(t *testing.T) {
 // With integrated authentication the process identity connects: a password
 // set by mistake must never reach PowerShell.
 func TestAuthMethodIsPassedToTheBridge(t *testing.T) {
+	// A value left in Terraform's own environment (manual bridge tests) must
+	// not pass through to PowerShell either.
+	t.Setenv(EnvBridgePassword, "inherited-secret")
 	integrated := &Client{config: Config{AuthMethod: AuthIntegrated, Password: "pw-secret"}}
 	env := strings.Join(integrated.buildEnv(), "\n")
 	if !strings.Contains(env, "EXCHANGE_BRIDGE_AUTH_METHOD=integrated") {
 		t.Error("EXCHANGE_BRIDGE_AUTH_METHOD=integrated missing from the child environment")
 	}
-	if strings.Contains(env, "pw-secret") {
-		t.Error("the password reached the child environment with integrated authentication")
+	if strings.Contains(env, "pw-secret") || strings.Contains(env, "inherited-secret") {
+		t.Error("a password reached the child environment with integrated authentication")
 	}
 
 	password := &Client{config: Config{Password: "pw-secret"}}

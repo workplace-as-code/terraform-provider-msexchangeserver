@@ -376,7 +376,8 @@ try {
     Write-Host "  Data sources: accepted_domain, accepted_domains, organization_config"
 } finally {
     if ($pushed) { Pop-Location }
-    Remove-Item Env:EXCHANGE_PASSWORD -ErrorAction SilentlyContinue
+    # The other test scripts of this window (edge, transport) do not set the method
+    Remove-Item Env:EXCHANGE_PASSWORD, Env:EXCHANGE_AUTH_METHOD -ErrorAction SilentlyContinue
     Write-Host ""
     Write-Host "Log: $Log"
 }

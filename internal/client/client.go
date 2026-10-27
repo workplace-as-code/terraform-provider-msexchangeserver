@@ -252,10 +252,21 @@ func (c *Client) buildArgs(scriptPath string, params map[string]string) (string,
 }
 
 // buildEnv returns the parent environment plus the secrets, role and
-// authentication method for auth.ps1. With integrated authentication no
-// password is passed: the process identity connects.
+// authentication method for auth.ps1. The parent's own values of these
+// variables (left over from a manual bridge test) are dropped, so only the
+// client's reach PowerShell. With integrated authentication no password is
+// passed at all: the process identity connects.
 func (c *Client) buildEnv() []string {
-	env := append(os.Environ(), EnvBridgeRole+"="+c.Role(), EnvBridgeAuthMethod+"="+c.AuthMethod())
+	env := make([]string, 0, len(os.Environ())+3)
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		switch strings.ToUpper(name) { // Windows variable names ignore case
+		case EnvBridgePassword, EnvBridgeRole, EnvBridgeAuthMethod:
+			continue
+		}
+		env = append(env, kv)
+	}
+	env = append(env, EnvBridgeRole+"="+c.Role(), EnvBridgeAuthMethod+"="+c.AuthMethod())
 	if c.AuthMethod() == AuthPassword {
 		env = append(env, EnvBridgePassword+"="+c.config.Password)
 	}

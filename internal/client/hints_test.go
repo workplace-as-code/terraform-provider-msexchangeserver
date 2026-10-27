@@ -18,6 +18,11 @@ func TestWithHint(t *testing.T) {
 	if got := withHint("The term 'New-AcceptedDomain' is not recognized as a name of a cmdlet"); !strings.Contains(got, "management roles") {
 		t.Errorf("RBAC advice missing: %q", got)
 	}
+	// With integrated authentication there is no password to check: the
+	// advice must also name the account Terraform runs as.
+	if got := withHint("Access is denied"); !strings.Contains(got, "with integrated authentication") {
+		t.Errorf("access advice ignores integrated authentication: %q", got)
+	}
 	if got := withHint("Some other error"); got != "Some other error" {
 		t.Errorf("unknown error changed: %q", got)
 	}
