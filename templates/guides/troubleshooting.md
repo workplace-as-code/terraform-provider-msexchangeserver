@@ -47,7 +47,7 @@ The provider runs its scripts with `-ExecutionPolicy Bypass` for its own process
 
 ## Connection
 
-Connection errors start with `Failed to connect to Exchange Server (<server>):`. Test the connection outside Terraform first, with the commands of the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+Connection errors start with `Failed to connect to Exchange Server (<server>):`, or `Failed to connect to Exchange Server (<server>) as <account>:` with integrated authentication, which names the Windows account Terraform ran as. Test the connection outside Terraform first, with the commands of the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 **Kerberos errors** (the message mentions `WinRM` and `Kerberos`). Kerberos needs, all at once:
 
@@ -55,6 +55,8 @@ Connection errors start with `Failed to connect to Exchange Server (<server>):`.
 - `server` set to the **FQDN of an Exchange server as registered in Active Directory**: an IP address, a short name, or a DNS alias or load balancer name fails;
 - access to a domain controller (port 88) and to the Exchange server (port 80);
 - clocks within five minutes of the domain controllers.
+
+**Integrated authentication: the wrong account, or no rights.** With `auth_method = "integrated"`, the account is the one the CI runner service or scheduled task runs as, not yours: compare the account in the error with the one you expected, check its Exchange role group, and that `klist`, run as that account, shows its tickets. See [Integrated Windows authentication](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#integrated-windows-authentication).
 
 **`Access is denied`.** The account cannot open the session. Check its password, its membership of the **Organization Management** role group (or an equivalent), and that remote PowerShell is enabled for it:
 
