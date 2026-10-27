@@ -65,11 +65,16 @@ No interactive logon is needed: a **Windows service** or a **scheduled task** ru
 - **The account** is a classic Active Directory user (not a group managed service account: the Exchange management shell does not accept them), member of the Exchange role group the provider needs, as for the `password` method.
 - **On the machine that runs Terraform**, joined to the domain, the account needs the **Log on as a service** right (or **Log on as a batch job** for a scheduled task). It never needs to be a local administrator.
 - **A scheduled task** must use **Run whether user is logged on or not** with the password stored. With **Do not store password**, Windows runs the task without network credentials: the account gets no Kerberos ticket and the connection to Exchange fails.
-- **A CI runner** is installed as a service under that account. For GitLab Runner:
+- **A CI runner** is installed as a service, then set to run under that account. For GitLab Runner:
 
-  ```powershell
-  .\gitlab-runner.exe install --user "CONTOSO\svc-tf-exch-write" --password "<typed once>" --working-directory C:\GitLab-Runner-write --config C:\GitLab-Runner-write\config.toml --service gitlab-runner-write
-  ```
+  1. Give the runner its own folder, for example `C:\GitLab-Runner-write`, where only **Administrators**, **SYSTEM** and the account have access: the account needs **Modify**, since the runner writes its `config.toml` (which holds the runner token) and the job builds there.
+  2. Install the service without a password on the command line, where PowerShell history and process auditing would keep it:
+
+     ```powershell
+     .\gitlab-runner.exe install --working-directory C:\GitLab-Runner-write --config C:\GitLab-Runner-write\config.toml --service gitlab-runner-write
+     ```
+
+  3. In **services.msc**, open the service, tab **Log On**: choose **This account**, enter `CONTOSO\svc-tf-exch-write` and its password, then restart the service. Windows grants the account **Log on as a service** at the same time.
 
 ### One read account and one write account
 
@@ -78,7 +83,7 @@ The Exchange rights are those of the account the runner runs as. To keep `terraf
 | Runner | Account | Exchange role group | Runs |
 |---|---|---|---|
 | tag `exchange-read` | `CONTOSO\svc-tf-exch-read` | View-Only Organization Management | `plan` on merge requests, scheduled drift detection |
-| tag `exchange-write` | `CONTOSO\svc-tf-exch-write` | the provider's least-privilege role group | `apply` only, from the default branch |
+| tag `exchange-write` | `CONTOSO\svc-tf-exch-write` | Organization Management, or a role group with only the management roles listed in the **Permissions** section of each resource you manage | `apply` only, from the default branch |
 
 Register the write runner as a **protected** runner, so that it only runs jobs of protected branches: a merge request cannot run code under the write account. The pipeline picks the runner by tag:
 
