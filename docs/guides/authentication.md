@@ -64,6 +64,7 @@ No interactive logon is needed: a **Windows service** or a **scheduled task** ru
 
 - **The account** is a classic Active Directory user (not a group managed service account: the Exchange management shell does not accept them), member of the Exchange role group the provider needs, as for the `password` method.
 - **On the machine that runs Terraform**, joined to the domain, the account needs the **Log on as a service** right (or **Log on as a batch job** for a scheduled task). It never needs to be a local administrator.
+- **A scheduled task** must use **Run whether user is logged on or not** with the password stored. With **Do not store password**, Windows runs the task without network credentials: the account gets no Kerberos ticket and the connection to Exchange fails.
 - **A CI runner** is installed as a service under that account. For GitLab Runner:
 
   ```powershell
@@ -90,13 +91,17 @@ plan:
   tags: [exchange-read]
   script:
     - terraform plan "-out=plan.cache"
+  artifacts:
+    paths: [plan.cache]
 
 apply:
   tags: [exchange-write]
+  needs: [plan]
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
   script:
+    # The plan reviewed on the read runner, passed as an artifact
     - terraform apply plan.cache
 ```
 

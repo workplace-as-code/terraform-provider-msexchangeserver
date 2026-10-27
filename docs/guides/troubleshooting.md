@@ -56,7 +56,7 @@ Connection errors start with `Failed to connect to Exchange Server (<server>):`,
 - access to a domain controller (port 88) and to the Exchange server (port 80);
 - clocks within five minutes of the domain controllers.
 
-**Integrated authentication: the wrong account, or no rights.** With `auth_method = "integrated"`, the account is the one the CI runner service or scheduled task runs as, not yours: compare the account in the error with the one you expected, check its Exchange role group, and that `klist`, run as that account, shows its tickets. See [Integrated Windows authentication](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#integrated-windows-authentication).
+**Integrated authentication: the wrong account, or no rights.** With `auth_method = "integrated"`, the account is the one the CI runner service or scheduled task runs as, not yours: compare the account in the error with the one you expected, check its Exchange role group, and that `klist`, run as that account, shows its tickets. A scheduled task set to **Do not store password** has no network credentials, so no Kerberos ticket: store the password in the task. See [Integrated Windows authentication](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#integrated-windows-authentication).
 
 **`Access is denied`.** The account cannot open the session. Check its password, its membership of the **Organization Management** role group (or an equivalent), and that remote PowerShell is enabled for it:
 
