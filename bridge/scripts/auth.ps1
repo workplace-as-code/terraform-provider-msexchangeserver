@@ -5,6 +5,11 @@
 # PowerShell endpoint uses a serialization format that PowerShell 7 remoting
 # does not support.
 #
+# The authentication method (EXCHANGE_BRIDGE_AUTH_METHOD, set by the Go client):
+#   password    Username and the password in EXCHANGE_BRIDGE_PASSWORD (default).
+#   integrated  Mailbox role only: Kerberos with the Windows identity of this
+#               process (a CI runner service or a scheduled task), no credential.
+#
 # The role (EXCHANGE_BRIDGE_ROLE, set by the Go client) picks the connection:
 #   Mailbox  Exchange remote PowerShell (http://<server>/PowerShell/) with
 #            Kerberos: the machine must be joined to the domain and Server must
@@ -78,11 +83,21 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
         return
     }
 
-    if (-not $Server)   { throw "server is required" }
-    if (-not $Username) { throw "username is required" }
+    $method = if ($env:EXCHANGE_BRIDGE_AUTH_METHOD) { $env:EXCHANGE_BRIDGE_AUTH_METHOD } else { "password" }
 
-    $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
-    $cred           = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
+    if (-not $Server) { throw "server is required" }
+    if ($method -eq "integrated" -and $Role -eq "Edge") {
+        throw "integrated authentication is only available with the Mailbox role"
+    }
+    # With integrated authentication, no credential: New-PSSession uses the
+    # Kerberos ticket of the account this process runs as.
+    $credential = @{}
+    if ($method -ne "integrated") {
+        if (-not $Username) { throw "username is required" }
+        $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
+        $cred           = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
+        $credential     = @{ Credential = $cred }
+    }
 
     if ($Role -eq "Edge") {
         try {
@@ -112,14 +127,19 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
             -ConfigurationName Microsoft.Exchange `
             -ConnectionUri "http://$Server/PowerShell/" `
             -Authentication Kerberos `
-            -Credential $cred `
-            -SessionOption $sessionOpts
+            -SessionOption $sessionOpts `
+            @credential
 
         # Import-PSSession alone imports into the calling script's scope, which
         # disappears when the script ends. -Global keeps the cmdlets available to
         # later requests served by the same persistent bridge host process.
         Import-Module (Import-PSSession $session -DisableNameChecking -AllowClobber) -Global -DisableNameChecking | Out-Null
     } catch {
+        if ($method -eq "integrated") {
+            # Portable .NET: WindowsIdentity is not available outside Windows (unit tests)
+            $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
+            throw "Failed to connect to Exchange Server ($Server) as ${account}: $_. With auth_method = `"integrated`": this machine must be joined to the domain, server must be the FQDN registered in Active Directory, and the account running Terraform needs an Exchange role group."
+        }
         throw "Failed to connect to Exchange Server ($Server): $_"
     }
 } $Server $Username $Password $BridgeRole
