@@ -67,6 +67,27 @@ func TestRoleIsPassedToTheBridge(t *testing.T) {
 	}
 }
 
+// With integrated authentication the process identity connects: a password
+// set by mistake must never reach PowerShell.
+func TestAuthMethodIsPassedToTheBridge(t *testing.T) {
+	integrated := &Client{config: Config{AuthMethod: AuthIntegrated, Password: "pw-secret"}}
+	env := strings.Join(integrated.buildEnv(), "\n")
+	if !strings.Contains(env, "EXCHANGE_BRIDGE_AUTH_METHOD=integrated") {
+		t.Error("EXCHANGE_BRIDGE_AUTH_METHOD=integrated missing from the child environment")
+	}
+	if strings.Contains(env, "pw-secret") {
+		t.Error("the password reached the child environment with integrated authentication")
+	}
+
+	password := &Client{config: Config{Password: "pw-secret"}}
+	env = strings.Join(password.buildEnv(), "\n")
+	for _, want := range []string{"EXCHANGE_BRIDGE_AUTH_METHOD=password", "EXCHANGE_BRIDGE_PASSWORD=pw-secret"} {
+		if !strings.Contains(env, want) {
+			t.Errorf("default method: %s missing from the child environment", want)
+		}
+	}
+}
+
 func TestBuildArgsIsDeterministic(t *testing.T) {
 	c := &Client{}
 	params := map[string]string{"B": "2", "A": "1", "C": "3"}
