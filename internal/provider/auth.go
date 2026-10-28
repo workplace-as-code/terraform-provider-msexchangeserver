@@ -183,7 +183,7 @@ func normalizeThumbprint(thumbprint string) (string, error) {
 		return "", nil
 	}
 	if len(cleaned) != 40 || strings.Trim(cleaned, "0123456789ABCDEF") != "" {
-		return "", fmt.Errorf("%q is not a certificate thumbprint: 40 hexadecimal characters (SHA-1) are expected.", thumbprint)
+		return "", fmt.Errorf("%q is not a certificate thumbprint: 40 hexadecimal characters (SHA-1) are expected", thumbprint)
 	}
 	return cleaned, nil
 }
