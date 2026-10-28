@@ -12,10 +12,13 @@ import (
 // characters or nothing at all.
 var httpErrorPage = regexp.MustCompile(`(following error message ?:)[^\x21-\x7E]*(For more information)`)
 
-// httpErrorPageAdvice explains the HTTP error page, a 503 in practice.
+// httpErrorPageAdvice explains the HTTP error page: a 503 in practice, or a
+// 400 when Exchange finds no account for a client certificate.
 const httpErrorPageAdvice = "Exchange answered with an HTTP error page (usually 503 Service Unavailable) instead of remote PowerShell: " +
 	"the Exchange server that runs the commands for this account is unavailable. Check MSExchangePowerShellAppPool and the " +
-	"Exchange services on the Exchange servers."
+	"Exchange services on the Exchange servers. With auth_method = \"certificate\", Exchange also answers so when no account " +
+	"is mapped to the certificate (event 103 of MSExchange Certificate Authentication Module on the Exchange server): check the " +
+	"altSecurityIdentities of the account."
 
 // hints maps fragments of a known Exchange error message (all must appear) to
 // advice that tells the user how to fix it.

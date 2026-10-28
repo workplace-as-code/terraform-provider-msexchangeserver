@@ -39,6 +39,11 @@ const EnvBridgeAuthMethod = "EXCHANGE_BRIDGE_AUTH_METHOD"
 // session reads and writes on. Empty: Exchange picks its own.
 const EnvBridgeDomainController = "EXCHANGE_BRIDGE_DOMAIN_CONTROLLER"
 
+// EnvBridgeCertificateThumbprint tells auth.ps1 which client certificate of
+// the Windows certificate store to connect with. A thumbprint is not a secret:
+// the private key stays in the store.
+const EnvBridgeCertificateThumbprint = "EXCHANGE_BRIDGE_CERTIFICATE_THUMBPRINT"
+
 // Authentication methods.
 const (
 	// AuthPassword connects with username and password (EXCHANGE_BRIDGE_PASSWORD).
@@ -46,6 +51,9 @@ const (
 	// AuthIntegrated connects with Kerberos under the Windows identity of the
 	// process running Terraform: a CI runner service or a scheduled task.
 	AuthIntegrated = "integrated"
+	// AuthCertificate connects over HTTPS with a client certificate of the
+	// Windows certificate store, which Active Directory maps to the account.
+	AuthCertificate = "certificate"
 )
 
 // Server roles the provider connects to.
@@ -97,6 +105,9 @@ type Config struct {
 	// DomainController is the FQDN of the domain controller every session
 	// uses (Mailbox role only); empty lets Exchange choose.
 	DomainController string
+	// CertificateThumbprint identifies the client certificate with
+	// AuthCertificate: 40 hexadecimal characters, upper case.
+	CertificateThumbprint string
 }
 
 // Client is the main provider client.
@@ -271,16 +282,16 @@ func (c *Client) buildArgs(scriptPath string, params map[string]string) (string,
 }
 
 // buildEnv returns the parent environment plus the secrets, role,
-// authentication method and domain controller for auth.ps1. The parent's own
-// values of these variables (left over from a manual bridge test) are dropped,
-// so only the client's reach PowerShell. With integrated authentication no
-// password is passed at all: the process identity connects.
+// authentication method, domain controller and certificate for auth.ps1. The
+// parent's own values of these variables (left over from a manual bridge
+// test) are dropped, so only the client's reach PowerShell. Only the password
+// method passes a password: the integrated and certificate methods have none.
 func (c *Client) buildEnv() []string {
-	env := make([]string, 0, len(os.Environ())+4)
+	env := make([]string, 0, len(os.Environ())+5)
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
 		switch strings.ToUpper(name) { // Windows variable names ignore case
-		case EnvBridgePassword, EnvBridgeRole, EnvBridgeAuthMethod, EnvBridgeDomainController:
+		case EnvBridgePassword, EnvBridgeRole, EnvBridgeAuthMethod, EnvBridgeDomainController, EnvBridgeCertificateThumbprint:
 			continue
 		}
 		env = append(env, kv)
@@ -289,8 +300,11 @@ func (c *Client) buildEnv() []string {
 	if c.config.DomainController != "" {
 		env = append(env, EnvBridgeDomainController+"="+c.config.DomainController)
 	}
-	if c.AuthMethod() == AuthPassword {
+	switch c.AuthMethod() {
+	case AuthPassword:
 		env = append(env, EnvBridgePassword+"="+c.config.Password)
+	case AuthCertificate:
+		env = append(env, EnvBridgeCertificateThumbprint+"="+c.config.CertificateThumbprint)
 	}
 	return env
 }

@@ -37,6 +37,8 @@ type exchangeProviderModel struct {
 	AuthMethod types.String `tfsdk:"auth_method"`
 
 	DomainController types.String `tfsdk:"domain_controller"`
+
+	CertificateThumbprint types.String `tfsdk:"certificate_thumbprint"`
 }
 
 // New returns a factory function that creates the provider.
@@ -80,9 +82,17 @@ func (p *exchangeProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 				Optional: true,
 				MarkdownDescription: "How the provider authenticates with the `Mailbox` role. `password` (default): `username` and `password`. " +
 					"`integrated`: Kerberos with the Windows identity of the process running Terraform, for example a CI runner service or a scheduled task " +
-					"on a domain-joined machine; `username` and `password` must then be left unset. Not available with the `Edge` role. " +
+					"on a domain-joined machine; `username` and `password` must then be left unset. " +
+					"`certificate`: HTTPS with the client certificate given by `certificate_thumbprint`, which Active Directory maps to the account. " +
+					"`integrated` and `certificate` are not available with the `Edge` role. " +
 					"Can also be set via the `EXCHANGE_AUTH_METHOD` environment variable.",
-				Validators: []validator.String{stringvalidator.OneOfCaseInsensitive(client.AuthPassword, client.AuthIntegrated)},
+				Validators: []validator.String{stringvalidator.OneOfCaseInsensitive(client.AuthPassword, client.AuthIntegrated, client.AuthCertificate)},
+			},
+			"certificate_thumbprint": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "With `auth_method = \"certificate\"`, the thumbprint of the client certificate, in the Personal store of the Windows account " +
+					"running Terraform (`Cert:\\CurrentUser\\My`), with its private key. Spaces are ignored. With several servers or a load balancer name, " +
+					"each name must match the HTTPS certificate of the Exchange servers. Can also be set via the `EXCHANGE_CERTIFICATE_THUMBPRINT` environment variable.",
 			},
 			"username": schema.StringAttribute{
 				Optional: true,
