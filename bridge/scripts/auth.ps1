@@ -139,7 +139,10 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
         if ($method -eq "integrated") {
             # Portable .NET: WindowsIdentity is not available outside Windows (unit tests)
             $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
-            throw "Failed to connect to Exchange Server ($Server) as ${account}: $_. With auth_method = `"integrated`": this machine must be joined to the domain, server must be the FQDN registered in Active Directory, and the account running Terraform needs an Exchange role group."
+            # The advice only fits authentication failures: an Exchange server
+            # that is down (HTTP 503) has nothing to do with the account.
+            $advice = if ("$_" -match "Kerberos|Access is denied|logon|authenticat|management roles") { " With auth_method = `"integrated`": this machine must be joined to the domain, server must be the FQDN registered in Active Directory, and the account running Terraform needs an Exchange role group." } else { "" }
+            throw "Failed to connect to Exchange Server ($Server) as ${account}: $_.$advice"
         }
         throw "Failed to connect to Exchange Server ($Server): $_"
     }

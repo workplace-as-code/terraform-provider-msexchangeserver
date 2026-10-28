@@ -139,4 +139,12 @@ func TestAuthConnects(t *testing.T) {
 			}
 		}
 	})
+	// An Exchange server that is down is not an account problem: no advice
+	// about domain membership or role groups.
+	t.Run("integrated-503", func(t *testing.T) {
+		r := connect(t, "integrated-503")
+		if !strings.Contains(r.Error, `\`+r.User+":") || strings.Contains(r.Error, "role group") {
+			t.Errorf("error = %q", r.Error)
+		}
+	})
 }

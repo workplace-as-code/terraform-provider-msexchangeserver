@@ -59,8 +59,8 @@ func (p *exchangeProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			},
 			"server": schema.StringAttribute{
 				Optional: true,
-				MarkdownDescription: "FQDN of the Exchange server. With the `Mailbox` role, the FQDN registered in Active Directory (e.g. `exch01.contoso.local`): the connection uses Kerberos, which fails with an IP address, " +
-					"a short name or a load balancer name. Required, either here or via the `EXCHANGE_SERVER` environment variable. With the `Edge` role, the name WinRM reaches the Edge server with; " +
+				MarkdownDescription: "FQDN of the Exchange server. With the `Mailbox` role, the FQDN registered in Active Directory (e.g. `exch01.contoso.local`): the connection uses Kerberos, which fails with an IP address " +
+					"or a short name; a DNS alias or load balancer name needs an alternate service account (ASA), see the Authentication Guide. Required, either here or via the `EXCHANGE_SERVER` environment variable. With the `Edge` role, the name WinRM reaches the Edge server with; " +
 					"leave it out when Terraform runs on the Edge server itself.",
 			},
 			"auth_method": schema.StringAttribute{

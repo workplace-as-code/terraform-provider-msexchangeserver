@@ -5,6 +5,7 @@
 #   -Case password-nouser   : password method without a username
 #   -Case integrated        : EXCHANGE_BRIDGE_AUTH_METHOD=integrated, no username
 #   -Case integrated-fails  : the same, and New-PSSession fails (Kerberos)
+#   -Case integrated-503    : the same, and Exchange answers with an HTTP error page
 param([string]$Script, [string]$Case)
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,7 @@ function New-PSSessionOption { "options" }
 function New-PSSession {
     param($ConfigurationName, $ConnectionUri, $Authentication, $Credential, $SessionOption)
     if ($Case -eq "integrated-fails") { throw "WinRM cannot process the request: Kerberos error" }
+    if ($Case -eq "integrated-503") { throw "Connecting to remote server exch01 failed with the following error message : $([char]0x73E0)$([char]0x2C4C) For more information, see the about_Remote_Troubleshooting Help topic." }
     $global:Connected = [ordered]@{
         ConnectionUri  = "$ConnectionUri"
         Authentication = "$Authentication"
