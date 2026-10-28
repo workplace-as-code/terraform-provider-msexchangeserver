@@ -119,8 +119,9 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
         return
     }
 
-    # SkipCA/CNCheck allows self-signed certs common on internal Exchange servers
-    $sessionOpts = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck -Culture en-US -UICulture en-US
+    # No certificate check is skipped: an HTTPS endpoint must present a
+    # certificate this machine trusts, issued for the name in Server.
+    $sessionOpts = New-PSSessionOption -Culture en-US -UICulture en-US
 
     try {
         $session = New-PSSession `
