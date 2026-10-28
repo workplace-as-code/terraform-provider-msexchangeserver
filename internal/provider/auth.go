@@ -20,6 +20,8 @@ func resolveConfig(m exchangeProviderModel) (client.Config, diag.Diagnostics) {
 		Password:   envOrConfig("EXCHANGE_PASSWORD", m.Password),
 		Role:       normalizeRole(envOrConfig("EXCHANGE_ROLE", m.Role)),
 		AuthMethod: normalizeAuthMethod(envOrConfig("EXCHANGE_AUTH_METHOD", m.AuthMethod)),
+
+		DomainController: strings.TrimSpace(envOrConfig("EXCHANGE_DOMAIN_CONTROLLER", m.DomainController)),
 	}
 	if cfg.Role == "" {
 		diags.AddError("Invalid role", "role must be \"Mailbox\" or \"Edge\". Check the provider block and EXCHANGE_ROLE.")
@@ -50,6 +52,13 @@ func resolveConfig(m exchangeProviderModel) (client.Config, diag.Diagnostics) {
 				"auth_method = \"integrated\" uses Kerberos, which an Edge Transport server outside the domain does not accept. To use the current Windows account on Edge, run Terraform on the Edge server and leave server out.")
 		}
 		cfg.Username, cfg.Password = "", ""
+	}
+
+	// Edge Transport servers keep their configuration in AD LDS, not in
+	// Active Directory: there is no domain controller to choose.
+	if cfg.DomainController != "" && cfg.Role == client.RoleEdge {
+		diags.AddError("domain_controller not available on Edge",
+			"domain_controller only applies to the Mailbox role. Remove it from the provider block or EXCHANGE_DOMAIN_CONTROLLER.")
 	}
 
 	// A local Edge Transport server needs no connection settings: Terraform

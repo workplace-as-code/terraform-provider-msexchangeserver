@@ -89,9 +89,10 @@ func TestAuthConnects(t *testing.T) {
 	}
 	type result struct {
 		Connected *struct {
-			ConnectionUri  string
-			Authentication string
-			Credential     bool
+			ConnectionUri   string
+			Authentication  string
+			Credential      bool
+			PreferredServer string
 		} `json:"connected"`
 		Error string `json:"error"`
 		User  string `json:"user"`
@@ -126,6 +127,21 @@ func TestAuthConnects(t *testing.T) {
 		r := connect(t, "integrated")
 		if r.Error != "" || r.Connected == nil || r.Connected.Credential || r.Connected.Authentication != "Kerberos" {
 			t.Errorf("got %+v, error %q: want Kerberos without a credential", r.Connected, r.Error)
+		}
+		if r.Connected != nil && r.Connected.PreferredServer != "" {
+			t.Errorf("session pinned to %q without a domain controller", r.Connected.PreferredServer)
+		}
+	})
+	t.Run("integrated-dc", func(t *testing.T) {
+		r := connect(t, "integrated-dc")
+		if r.Error != "" || r.Connected == nil || r.Connected.PreferredServer != "dc01.contoso.local" {
+			t.Errorf("got %+v, error %q: want the session pinned to dc01.contoso.local", r.Connected, r.Error)
+		}
+	})
+	t.Run("integrated-dc-fails", func(t *testing.T) {
+		r := connect(t, "integrated-dc-fails")
+		if !strings.Contains(r.Error, "Failed to use the domain controller dc01.contoso.local") || !strings.Contains(r.Error, "suitability") {
+			t.Errorf("error = %q", r.Error)
 		}
 	})
 	t.Run("integrated-fails", func(t *testing.T) {

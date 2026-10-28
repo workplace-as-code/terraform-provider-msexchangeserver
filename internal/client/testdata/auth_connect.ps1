@@ -6,6 +6,8 @@
 #   -Case integrated        : EXCHANGE_BRIDGE_AUTH_METHOD=integrated, no username
 #   -Case integrated-fails  : the same, and New-PSSession fails (Kerberos)
 #   -Case integrated-503    : the same, and Exchange answers with an HTTP error page
+#   -Case integrated-dc     : integrated, with EXCHANGE_BRIDGE_DOMAIN_CONTROLLER
+#   -Case integrated-dc-fails : the same, and Exchange refuses the domain controller
 param([string]$Script, [string]$Case)
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +27,11 @@ function New-PSSession {
 }
 function Import-PSSession { "module" }
 function Import-Module { }
+function Set-ADServerSettings {
+    param($PreferredServer)
+    if ($Case -eq "integrated-dc-fails") { throw "error 0x51 ... check the suitability of server $PreferredServer" }
+    $global:Connected.PreferredServer = "$PreferredServer"
+}
 
 $username = ""
 switch ($Case) {
@@ -33,6 +40,7 @@ switch ($Case) {
     { $_ -like "integrated*" } { $env:EXCHANGE_BRIDGE_AUTH_METHOD = "integrated" }
     default { throw "unknown case $Case" }
 }
+$env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER = if ($Case -like "integrated-dc*") { "dc01.contoso.local" } else { "" }
 
 $global:Connected = $null
 $errorText = ""

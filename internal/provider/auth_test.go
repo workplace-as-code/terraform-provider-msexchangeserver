@@ -10,7 +10,7 @@ import (
 
 // authEnv lists every variable resolveConfig reads. Each case starts with all
 // of them empty, so the shell running the tests cannot change the result.
-var authEnv = []string{"EXCHANGE_SERVER", "EXCHANGE_USERNAME", "EXCHANGE_PASSWORD", "EXCHANGE_ROLE", "EXCHANGE_AUTH_METHOD"}
+var authEnv = []string{"EXCHANGE_SERVER", "EXCHANGE_USERNAME", "EXCHANGE_PASSWORD", "EXCHANGE_ROLE", "EXCHANGE_AUTH_METHOD", "EXCHANGE_DOMAIN_CONTROLLER"}
 
 // secretPassword must never appear in a diagnostic.
 const secretPassword = "pw-secret"
@@ -29,6 +29,8 @@ func model(attrs map[string]string) exchangeProviderModel {
 		Password:   v("password"),
 		Role:       v("role"),
 		AuthMethod: v("auth_method"),
+
+		DomainController: v("domain_controller"),
 	}
 }
 
@@ -42,6 +44,7 @@ func TestResolveConfig(t *testing.T) {
 		env        map[string]string
 		wantError  string // substring of a diagnostic summary, "" when the configuration is valid
 		wantMethod string
+		wantDC     string
 	}{
 		"password by default": {attrs: withUser, wantMethod: client.AuthPassword},
 		"password without username": {
@@ -84,6 +87,21 @@ func TestResolveConfig(t *testing.T) {
 			attrs:      map[string]string{"role": "Edge"},
 			wantMethod: client.AuthPassword,
 		},
+		"domain controller": {
+			attrs:      map[string]string{"server": "exch01.contoso.local", "auth_method": "integrated", "domain_controller": "dc01.contoso.local"},
+			wantMethod: client.AuthIntegrated,
+			wantDC:     "dc01.contoso.local",
+		},
+		"domain controller from the environment": {
+			attrs:      integrated,
+			env:        map[string]string{"EXCHANGE_DOMAIN_CONTROLLER": " dc02.contoso.local "},
+			wantMethod: client.AuthIntegrated,
+			wantDC:     "dc02.contoso.local",
+		},
+		"domain controller on Edge": {
+			attrs:     map[string]string{"role": "Edge", "domain_controller": "dc01.contoso.local"},
+			wantError: "domain_controller not available on Edge",
+		},
 	}
 
 	for name, c := range cases {
@@ -114,6 +132,9 @@ func TestResolveConfig(t *testing.T) {
 			}
 			if cfg.AuthMethod != c.wantMethod {
 				t.Errorf("AuthMethod = %q, want %q", cfg.AuthMethod, c.wantMethod)
+			}
+			if cfg.DomainController != c.wantDC {
+				t.Errorf("DomainController = %q, want %q", cfg.DomainController, c.wantDC)
 			}
 			if cfg.AuthMethod == client.AuthIntegrated && (cfg.Username != "" || cfg.Password != "") {
 				t.Errorf("integrated configuration carries credentials: %q / %q", cfg.Username, cfg.Password)

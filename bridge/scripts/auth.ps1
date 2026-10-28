@@ -21,6 +21,9 @@
 #            snap-in locally (current Windows account, a local administrator).
 #            With Server, a WinRM session (Negotiate) to the Edge server with a
 #            local administrator account loads the snap-in and imports it.
+#
+# EXCHANGE_BRIDGE_DOMAIN_CONTROLLER (optional, Mailbox role, set by the Go
+# client): the domain controller every session reads from and writes to.
 
 param(
     [string]$Server   = "",
@@ -145,5 +148,18 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
             throw "Failed to connect to Exchange Server ($Server) as ${account}: $_.$advice"
         }
         throw "Failed to connect to Exchange Server ($Server): $_"
+    }
+
+    # Pin the session to one domain controller, so that every request reads and
+    # writes the same copy of Active Directory, whatever domain controllers the
+    # Exchange server picked. Exchange refuses an unreachable domain controller
+    # at once. On failure the bridge recycles this worker: the next request
+    # connects again instead of reusing an unpinned session.
+    if ($env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER) {
+        try {
+            Set-ADServerSettings -PreferredServer $env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER
+        } catch {
+            throw "Failed to use the domain controller $($env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER) on Exchange Server ($Server): $_"
+        }
     }
 } $Server $Username $Password $BridgeRole

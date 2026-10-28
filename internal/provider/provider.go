@@ -33,6 +33,8 @@ type exchangeProviderModel struct {
 	Role     types.String `tfsdk:"role"`
 
 	AuthMethod types.String `tfsdk:"auth_method"`
+
+	DomainController types.String `tfsdk:"domain_controller"`
 }
 
 // New returns a factory function that creates the provider.
@@ -80,6 +82,12 @@ func (p *exchangeProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 				Optional:            true,
 				Sensitive:           true,
 				MarkdownDescription: "Password of `username`. Not used with `auth_method = \"integrated\"`. Can also be set via the `EXCHANGE_PASSWORD` environment variable.",
+			},
+			"domain_controller": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "FQDN of the domain controller every session reads from and writes to (`Set-ADServerSettings -PreferredServer`), " +
+					"so that two runs served by different Exchange servers see the same data. If it is unavailable, the connection fails. " +
+					"Leave it out to let Exchange choose. `Mailbox` role only. Can also be set via the `EXCHANGE_DOMAIN_CONTROLLER` environment variable.",
 			},
 		},
 	}

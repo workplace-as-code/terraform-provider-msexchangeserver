@@ -35,6 +35,10 @@ const EnvBridgeRole = "EXCHANGE_BRIDGE_ROLE"
 // EnvBridgeAuthMethod tells auth.ps1 how to authenticate. It is not a secret.
 const EnvBridgeAuthMethod = "EXCHANGE_BRIDGE_AUTH_METHOD"
 
+// EnvBridgeDomainController tells auth.ps1 which domain controller every
+// session reads and writes on. Empty: Exchange picks its own.
+const EnvBridgeDomainController = "EXCHANGE_BRIDGE_DOMAIN_CONTROLLER"
+
 // Authentication methods.
 const (
 	// AuthPassword connects with username and password (EXCHANGE_BRIDGE_PASSWORD).
@@ -87,6 +91,9 @@ type Config struct {
 	Role     string // RoleMailbox (default) or RoleEdge
 	// AuthMethod is AuthPassword (default, also when empty) or AuthIntegrated.
 	AuthMethod string
+	// DomainController is the FQDN of the domain controller every session
+	// uses (Mailbox role only); empty lets Exchange choose.
+	DomainController string
 }
 
 // Client is the main provider client.
@@ -251,22 +258,25 @@ func (c *Client) buildArgs(scriptPath string, params map[string]string) (string,
 	return binary, args
 }
 
-// buildEnv returns the parent environment plus the secrets, role and
-// authentication method for auth.ps1. The parent's own values of these
-// variables (left over from a manual bridge test) are dropped, so only the
-// client's reach PowerShell. With integrated authentication no password is
-// passed at all: the process identity connects.
+// buildEnv returns the parent environment plus the secrets, role,
+// authentication method and domain controller for auth.ps1. The parent's own
+// values of these variables (left over from a manual bridge test) are dropped,
+// so only the client's reach PowerShell. With integrated authentication no
+// password is passed at all: the process identity connects.
 func (c *Client) buildEnv() []string {
-	env := make([]string, 0, len(os.Environ())+3)
+	env := make([]string, 0, len(os.Environ())+4)
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
 		switch strings.ToUpper(name) { // Windows variable names ignore case
-		case EnvBridgePassword, EnvBridgeRole, EnvBridgeAuthMethod:
+		case EnvBridgePassword, EnvBridgeRole, EnvBridgeAuthMethod, EnvBridgeDomainController:
 			continue
 		}
 		env = append(env, kv)
 	}
 	env = append(env, EnvBridgeRole+"="+c.Role(), EnvBridgeAuthMethod+"="+c.AuthMethod())
+	if c.config.DomainController != "" {
+		env = append(env, EnvBridgeDomainController+"="+c.config.DomainController)
+	}
 	if c.AuthMethod() == AuthPassword {
 		env = append(env, EnvBridgePassword+"="+c.config.Password)
 	}
