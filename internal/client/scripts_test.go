@@ -89,10 +89,11 @@ func TestAuthConnects(t *testing.T) {
 	}
 	type result struct {
 		Connected *struct {
-			ConnectionUri   string
-			Authentication  string
-			Credential      bool
-			PreferredServer string
+			ConnectionUri         string
+			Authentication        string
+			Credential            bool
+			CertificateThumbprint string
+			PreferredServer       string
 		} `json:"connected"`
 		Error    string   `json:"error"`
 		User     string   `json:"user"`
@@ -135,6 +136,21 @@ func TestAuthConnects(t *testing.T) {
 		}
 		if r.Connected != nil && r.Connected.PreferredServer != "" {
 			t.Errorf("session pinned to %q without a domain controller", r.Connected.PreferredServer)
+		}
+	})
+	// certificate: HTTPS with the thumbprint, no Kerberos and no credential.
+	t.Run("certificate", func(t *testing.T) {
+		r := connect(t, "certificate")
+		if r.Error != "" || r.Connected == nil || r.Connected.ConnectionUri != "https://exch01.contoso.local/PowerShell/" ||
+			r.Connected.CertificateThumbprint != "0123456789ABCDEF0123456789ABCDEF01234567" || r.Connected.Authentication != "" || r.Connected.Credential {
+			t.Errorf("got %+v, error %q: want HTTPS with the certificate only", r.Connected, r.Error)
+		}
+	})
+	t.Run("certificate-missing", func(t *testing.T) {
+		r := connect(t, "certificate-missing")
+		if len(r.Attempts) != 0 || !strings.Contains(r.Error, "No certificate with the thumbprint 0123456789ABCDEF0123456789ABCDEF01234567") ||
+			!strings.Contains(r.Error, `\`+r.User+" ") {
+			t.Errorf("attempts %v, error %q: want a clear error naming the account, before any connection", r.Attempts, r.Error)
 		}
 	})
 	t.Run("integrated-dc", func(t *testing.T) {

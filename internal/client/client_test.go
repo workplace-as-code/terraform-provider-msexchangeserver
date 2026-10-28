@@ -105,6 +105,24 @@ func TestDomainControllerIsPassedToTheBridge(t *testing.T) {
 	}
 }
 
+// The certificate method passes the thumbprint and never a password.
+func TestCertificateIsPassedToTheBridge(t *testing.T) {
+	t.Setenv(EnvBridgeCertificateThumbprint, "INHERITED")
+	c := &Client{config: Config{AuthMethod: AuthCertificate, CertificateThumbprint: "0123456789ABCDEF0123456789ABCDEF01234567", Password: "pw-secret"}}
+	env := strings.Join(c.buildEnv(), "\n")
+	for _, want := range []string{"EXCHANGE_BRIDGE_AUTH_METHOD=certificate", EnvBridgeCertificateThumbprint + "=0123456789ABCDEF0123456789ABCDEF01234567"} {
+		if !strings.Contains(env, want) {
+			t.Errorf("%s missing from the child environment", want)
+		}
+	}
+	if strings.Contains(env, "pw-secret") || strings.Contains(env, "INHERITED") {
+		t.Errorf("unexpected value in the child environment:\n%s", env)
+	}
+	if env := strings.Join((&Client{config: Config{CertificateThumbprint: "0123"}}).buildEnv(), "\n"); strings.Contains(env, EnvBridgeCertificateThumbprint) {
+		t.Error("a thumbprint reached the child environment with the password method")
+	}
+}
+
 // auth.ps1 receives the servers in -Server, in the configured order.
 func TestServersArePassedInOrder(t *testing.T) {
 	c := &Client{config: Config{Servers: []string{"exch02.contoso.local", "exch01.contoso.local"}}}

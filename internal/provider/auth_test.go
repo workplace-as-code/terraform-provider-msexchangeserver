@@ -11,7 +11,14 @@ import (
 
 // authEnv lists every variable resolveConfig reads. Each case starts with all
 // of them empty, so the shell running the tests cannot change the result.
-var authEnv = []string{"EXCHANGE_SERVER", "EXCHANGE_SERVERS", "EXCHANGE_USERNAME", "EXCHANGE_PASSWORD", "EXCHANGE_ROLE", "EXCHANGE_AUTH_METHOD", "EXCHANGE_DOMAIN_CONTROLLER"}
+var authEnv = []string{"EXCHANGE_SERVER", "EXCHANGE_SERVERS", "EXCHANGE_USERNAME", "EXCHANGE_PASSWORD", "EXCHANGE_ROLE", "EXCHANGE_AUTH_METHOD", "EXCHANGE_DOMAIN_CONTROLLER", "EXCHANGE_CERTIFICATE_THUMBPRINT"}
+
+// thumbprint is a valid certificate thumbprint; copied is the same one as the
+// certificate dialog of Windows gives it, with spaces and an invisible
+// left-to-right mark in front.
+const thumbprint = "0123456789ABCDEF0123456789ABCDEF01234567"
+
+var copied = string(rune(0x200e)) + "01 23 45 67 89 ab cd ef 01 23 45 67 89 ab cd ef 01 23 45 67"
 
 // secretPassword must never appear in a diagnostic.
 const secretPassword = "pw-secret"
@@ -42,6 +49,8 @@ func model(attrs map[string]string) exchangeProviderModel {
 		AuthMethod: v("auth_method"),
 
 		DomainController: v("domain_controller"),
+
+		CertificateThumbprint: v("certificate_thumbprint"),
 	}
 }
 
@@ -57,6 +66,7 @@ func TestResolveConfig(t *testing.T) {
 		wantMethod  string
 		wantDC      string
 		wantServers string // comma-separated
+		wantThumb   string
 	}{
 		"password by default": {attrs: withUser, wantMethod: client.AuthPassword},
 		"password without username": {
@@ -144,6 +154,37 @@ func TestResolveConfig(t *testing.T) {
 			attrs:     map[string]string{"role": "Edge", "servers": "edge01,edge02", "username": "EDGE01\\Administrator"},
 			wantError: "servers not available on Edge",
 		},
+		"certificate": {
+			attrs:      map[string]string{"server": "exch01.contoso.local", "auth_method": "certificate", "certificate_thumbprint": copied},
+			wantMethod: client.AuthCertificate,
+			wantThumb:  thumbprint,
+		},
+		"certificate from the environment": {
+			attrs:      server,
+			env:        map[string]string{"EXCHANGE_AUTH_METHOD": "Certificate", "EXCHANGE_CERTIFICATE_THUMBPRINT": thumbprint},
+			wantMethod: client.AuthCertificate,
+			wantThumb:  thumbprint,
+		},
+		"certificate without thumbprint": {
+			attrs:     map[string]string{"server": "exch01.contoso.local", "auth_method": "certificate"},
+			wantError: "Missing certificate_thumbprint",
+		},
+		"certificate with a password": {
+			attrs:     map[string]string{"server": "exch01.contoso.local", "auth_method": "certificate", "certificate_thumbprint": thumbprint, "password": secretPassword},
+			wantError: "Conflicting authentication settings",
+		},
+		"thumbprint without the certificate method": {
+			attrs:     map[string]string{"server": "exch01.contoso.local", "auth_method": "integrated", "certificate_thumbprint": thumbprint},
+			wantError: "Conflicting authentication settings",
+		},
+		"invalid thumbprint": {
+			attrs:     map[string]string{"server": "exch01.contoso.local", "auth_method": "certificate", "certificate_thumbprint": "CN=svc-terraform"},
+			wantError: "Invalid certificate_thumbprint",
+		},
+		"certificate on Edge": {
+			attrs:     map[string]string{"role": "Edge", "auth_method": "certificate", "certificate_thumbprint": thumbprint},
+			wantError: "Certificate authentication not available on Edge",
+		},
 	}
 
 	for name, c := range cases {
@@ -177,6 +218,9 @@ func TestResolveConfig(t *testing.T) {
 			}
 			if cfg.DomainController != c.wantDC {
 				t.Errorf("DomainController = %q, want %q", cfg.DomainController, c.wantDC)
+			}
+			if cfg.CertificateThumbprint != c.wantThumb {
+				t.Errorf("CertificateThumbprint = %q, want %q", cfg.CertificateThumbprint, c.wantThumb)
 			}
 			if got := strings.Join(cfg.Servers, ","); got != c.wantServers {
 				t.Errorf("Servers = %q, want %q", got, c.wantServers)

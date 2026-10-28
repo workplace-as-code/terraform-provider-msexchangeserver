@@ -65,7 +65,7 @@ Or `$env:EXCHANGE_SERVERS = "exch01.contoso.local,exch02.contoso.local"`. Limita
 `server` can be the name of a load balancer in front of the Exchange servers, with these limitations:
 
 - The name needs an alternate service account (ASA) deployed on every Exchange server, with the SPN `HTTP/<name>`: see [Configure Kerberos authentication for load-balanced Client Access services](https://learn.microsoft.com/exchange/architecture/client-access/kerberos-auth-for-load-balanced-client-access).
-- The connection stays on `http://`: Kerberos over HTTPS does not work with Exchange remote PowerShell.
+- With Kerberos, the connection stays on `http://`: Kerberos over HTTPS does not work with Exchange remote PowerShell. [Certificate authentication](#certificate-authentication) uses HTTPS.
 - Exchange chooses the server that runs the commands, whatever server the load balancer picks: the load balancer does not cover the failure of that server.
 - While the Exchange servers run different cumulative updates, the load balancer needs session affinity.
 
@@ -150,6 +150,43 @@ Remove-PSSession $session
 ```
 
 When the connection fails, the provider's error names the account it ran as: `Failed to connect to Exchange Server (exch01.contoso.local) as CONTOSO\svc-tf-exch-read: ...`. Check that the machine is joined to the domain, that `server` is the FQDN registered in Active Directory, that `klist` shows a ticket for the account, and that the account is a member of an Exchange role group.
+
+---
+
+## Certificate authentication
+
+With `auth_method = "certificate"`, the provider connects over HTTPS (`https://<server>/PowerShell/`) with a client certificate, which Active Directory maps to the account. There is no password in the configuration, and the private key can be non-exportable.
+
+```hcl
+provider "msexchangeserver" {
+  server                 = "exch01.contoso.local"
+  auth_method            = "certificate"
+  certificate_thumbprint = "0123456789ABCDEF0123456789ABCDEF01234567"
+}
+```
+
+Or `$env:EXCHANGE_AUTH_METHOD = "certificate"` and `$env:EXCHANGE_CERTIFICATE_THUMBPRINT`. Requirements:
+
+- **The certificate, with its private key, in the Personal store of the Windows account running Terraform** (`Cert:\CurrentUser\My`), issued for client authentication by a CA that the Exchange servers trust.
+- **That CA in the NTAuth store** of the forest (`certutil -dspublish -f <ca.cer> NTAuthCA`), or issued by an enterprise CA, which is there already.
+- **On each Exchange server**, the IIS feature Client Certificate Mapping Authentication (`Web-Client-Auth`), enabled on the PowerShell virtual directory:
+
+  ```powershell
+  & $env:windir\system32\inetsrv\appcmd.exe set config "Default Web Site/PowerShell/" -section:system.webServer/security/authentication/clientCertificateMappingAuthentication /enabled:True /commit:apphost
+  ```
+
+- **The mapping on the account** (`altSecurityIdentities`), with the issuer and subject written exactly as Windows shows them, separated by a comma and a space:
+
+  ```powershell
+  $cert = Get-Item Cert:\CurrentUser\My\<thumbprint>
+  Set-ADUser svc-terraform -Add @{ altSecurityIdentities = "X509:<I>$($cert.Issuer)<S>$($cert.Subject)" }
+  ```
+
+Limitations:
+
+- `server` (or each name of `servers`, or the load balancer name) must match a name of the HTTPS certificate of the Exchange servers.
+- The Exchange servers cache the mapping: after changing it, recycle `MSExchangePowerShellFrontEndAppPool` or wait. When no account is mapped, Exchange answers with an HTTP error page and logs event 103 of MSExchange Certificate Authentication Module.
+- Not available with the `Edge` role.
 
 ---
 

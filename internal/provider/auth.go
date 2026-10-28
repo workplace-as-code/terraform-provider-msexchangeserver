@@ -39,11 +39,11 @@ func resolveConfig(m exchangeProviderModel) (client.Config, diag.Diagnostics) {
 	}
 	if cfg.AuthMethod == "" {
 		diags.AddError("Invalid auth_method",
-			fmt.Sprintf("auth_method must be one of: %s. Check the provider block and EXCHANGE_AUTH_METHOD.", strings.Join([]string{client.AuthPassword, client.AuthIntegrated}, ", ")))
+			fmt.Sprintf("auth_method must be one of: %s. Check the provider block and EXCHANGE_AUTH_METHOD.", strings.Join([]string{client.AuthPassword, client.AuthIntegrated, client.AuthCertificate}, ", ")))
 		return cfg, diags
 	}
 
-	if cfg.AuthMethod == client.AuthIntegrated {
+	if cfg.AuthMethod != client.AuthPassword {
 		// A username or password left in the block or the environment must not
 		// be silently ignored: the user may believe that account connects.
 		var set []string
@@ -54,14 +54,37 @@ func resolveConfig(m exchangeProviderModel) (client.Config, diag.Diagnostics) {
 			set = append(set, "password")
 		}
 		if len(set) > 0 {
+			connectsWith := "the Windows identity of the process running Terraform"
+			if cfg.AuthMethod == client.AuthCertificate {
+				connectsWith = "the client certificate given by certificate_thumbprint"
+			}
 			diags.AddError("Conflicting authentication settings",
-				fmt.Sprintf("auth_method = \"integrated\" connects with the Windows identity of the process running Terraform, but %s is set (in the provider block or an EXCHANGE_* variable): choose one method.", strings.Join(set, " and ")))
-		}
-		if cfg.Role == client.RoleEdge {
-			diags.AddError("Integrated authentication not available on Edge",
-				"auth_method = \"integrated\" uses Kerberos, which an Edge Transport server outside the domain does not accept. To use the current Windows account on Edge, run Terraform on the Edge server and leave server out.")
+				fmt.Sprintf("auth_method = %q connects with %s, but %s is set (in the provider block or an EXCHANGE_* variable): choose one method.", cfg.AuthMethod, connectsWith, strings.Join(set, " and ")))
 		}
 		cfg.Username, cfg.Password = "", ""
+	}
+	if cfg.AuthMethod == client.AuthIntegrated && cfg.Role == client.RoleEdge {
+		diags.AddError("Integrated authentication not available on Edge",
+			"auth_method = \"integrated\" uses Kerberos, which an Edge Transport server outside the domain does not accept. To use the current Windows account on Edge, run Terraform on the Edge server and leave server out.")
+	}
+	if cfg.AuthMethod == client.AuthCertificate && cfg.Role == client.RoleEdge {
+		diags.AddError("Certificate authentication not available on Edge",
+			"auth_method = \"certificate\" uses the remote PowerShell virtual directory of the Mailbox servers, which Edge Transport servers do not have.")
+	}
+
+	thumbprint, err := normalizeThumbprint(envOrConfig("EXCHANGE_CERTIFICATE_THUMBPRINT", m.CertificateThumbprint))
+	switch {
+	case err != nil:
+		diags.AddError("Invalid certificate_thumbprint", err.Error()+" Check the provider block and EXCHANGE_CERTIFICATE_THUMBPRINT.")
+	case cfg.AuthMethod == client.AuthCertificate && thumbprint == "":
+		diags.AddError("Missing certificate_thumbprint",
+			"auth_method = \"certificate\" needs certificate_thumbprint, the thumbprint of the client certificate in the Windows certificate store. Set it in the provider block or via EXCHANGE_CERTIFICATE_THUMBPRINT.")
+	case cfg.AuthMethod != client.AuthCertificate && thumbprint != "":
+		// As with username and password: never ignore a setting silently.
+		diags.AddError("Conflicting authentication settings",
+			fmt.Sprintf("certificate_thumbprint is set (in the provider block or EXCHANGE_CERTIFICATE_THUMBPRINT), but auth_method is %q: set auth_method = \"certificate\" or remove it.", cfg.AuthMethod))
+	case cfg.AuthMethod == client.AuthCertificate:
+		cfg.CertificateThumbprint = thumbprint
 	}
 
 	// Edge Transport servers keep their configuration in AD LDS, not in
@@ -138,6 +161,29 @@ func normalizeAuthMethod(method string) string {
 		return client.AuthPassword
 	case client.AuthIntegrated:
 		return client.AuthIntegrated
+	case client.AuthCertificate:
+		return client.AuthCertificate
 	}
 	return ""
+}
+
+// normalizeThumbprint returns a certificate thumbprint in upper case without
+// separators. A thumbprint copied from the certificate dialog of Windows
+// carries spaces, and often an invisible left-to-right mark at its start.
+func normalizeThumbprint(thumbprint string) (string, error) {
+	cleaned := strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', ':', '\u200e', '\u200f', '\ufeff':
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(thumbprint))
+	cleaned = strings.ToUpper(cleaned)
+	if cleaned == "" {
+		return "", nil
+	}
+	if len(cleaned) != 40 || strings.Trim(cleaned, "0123456789ABCDEF") != "" {
+		return "", fmt.Errorf("%q is not a certificate thumbprint: 40 hexadecimal characters (SHA-1) are expected", thumbprint)
+	}
+	return cleaned, nil
 }

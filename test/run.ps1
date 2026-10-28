@@ -27,13 +27,20 @@
 
 .PARAMETER Username
     Account with the Organization Management role group, as DOMAIN\user or
-    user@domain. The password is asked for. Use -Username or -Integrated.
+    user@domain. The password is asked for. Use one of -Username, -Integrated
+    or -CertificateThumbprint.
 
 .PARAMETER Integrated
     Integrated Windows authentication (auth_method = "integrated"): the
     provider connects as the account running this script, with no password.
     Run it from a session of that account (a service or scheduled task, or
-    runas). Use -Username or -Integrated.
+    runas).
+
+.PARAMETER CertificateThumbprint
+    Certificate authentication (auth_method = "certificate"): the thumbprint
+    of a client certificate in the Personal store of the account running this
+    script, mapped to that account in Active Directory. The connection uses
+    HTTPS: -Server must match the HTTPS certificate of the Exchange servers.
 
 .PARAMETER ProviderPath
     Path of terraform-provider-msexchangeserver.exe. Defaults to the file next
@@ -54,11 +61,15 @@
 
 .EXAMPLE
     .\run.ps1 -Server exch01.contoso.local -Integrated
+
+.EXAMPLE
+    .\run.ps1 -Server exch01.contoso.local -CertificateThumbprint 0123456789ABCDEF0123456789ABCDEF01234567
 #>
 param(
     [Parameter(Mandatory = $true)] [string]$Server,
     [string]$Username,
     [switch]$Integrated,
+    [string]$CertificateThumbprint,
     [ValidateSet("check", "all")] [string]$Step = "all",
     [string]$ProviderPath = (Join-Path $PSScriptRoot "terraform-provider-msexchangeserver.exe"),
     [switch]$OneShot,
@@ -184,7 +195,7 @@ function Reset-State {
 $pushed = $false
 try {
     $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
-    $authText = if ($Integrated) { "-Integrated (as $account)" } else { "-Username $Username" }
+    $authText = if ($Integrated) { "-Integrated (as $account)" } elseif ($CertificateThumbprint) { "-CertificateThumbprint $CertificateThumbprint (as $account)" } else { "-Username $Username" }
     Write-Log "run.ps1 -Server $Server $authText -Step $Step, $(Get-Date -Format o)"
     Write-Log "PowerShell $($PSVersionTable.PSVersion) $($PSVersionTable.PSEdition), $([Environment]::OSVersion.VersionString)"
 
@@ -199,24 +210,29 @@ try {
     }
     Write-Pass "Provider: $ProviderPath"
     if (-not (Get-Command powershell.exe -ErrorAction SilentlyContinue)) { Stop-Test "powershell.exe (Windows PowerShell 5.1) not found" }
-    if ([bool]$Username -eq [bool]$Integrated) { Stop-Test "Use either -Username (password asked for) or -Integrated (the account running this script)" }
+    if (@($Username, $Integrated.IsPresent, $CertificateThumbprint | Where-Object { $_ }).Count -ne 1) {
+        Stop-Test "Use one of -Username (password asked for), -Integrated (the account running this script) or -CertificateThumbprint (a certificate of that account)"
+    }
     if ($Server -notmatch '\.' -or $Server -match '^\d+(\.\d+){3}$') {
         Stop-Test "-Server must be the FQDN of the Exchange server (Kerberos does not work with an IP address or a short name)"
     }
 
     # -----------------------------------------------------------------------
-    Write-Step "Kerberos connection to http://$Server/PowerShell/"
+    $scheme = if ($CertificateThumbprint) { "https" } else { "http" }
+    Write-Step "Connection to ${scheme}://$Server/PowerShell/"
     # Integrated: no credential, New-PSSession uses the Kerberos ticket of this session
-    $credential = @{}
+    $credential = @{ Authentication = "Kerberos" }
     if ($Integrated) {
         Write-Info "Integrated authentication as $account"
+    } elseif ($CertificateThumbprint) {
+        Write-Info "Certificate authentication as $account"
+        $credential = @{ CertificateThumbprint = $CertificateThumbprint }
     } else {
         $cred = Get-Credential -UserName $Username -Message "Exchange Server account (Organization Management)"
         if ($null -eq $cred) { Stop-Test "No credential given" }
-        $credential = @{ Credential = $cred }
+        $credential.Credential = $cred
     }
-    $session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "http://$Server/PowerShell/" `
-        -Authentication Kerberos @credential
+    $session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "${scheme}://$Server/PowerShell/" @credential
     try {
         # The Exchange endpoint runs remote commands without the PowerShell
         # language (NoLanguage mode): only plain cmdlet calls, results processed here.
@@ -248,8 +264,13 @@ try {
     $env:TF_IN_AUTOMATION      = "1"
     $env:CHECKPOINT_DISABLE    = "1"
     $env:EXCHANGE_SERVER       = $Server
+    Remove-Item Env:EXCHANGE_CERTIFICATE_THUMBPRINT -ErrorAction SilentlyContinue
     if ($Integrated) {
         $env:EXCHANGE_AUTH_METHOD = "integrated"
+        Remove-Item Env:EXCHANGE_USERNAME, Env:EXCHANGE_PASSWORD -ErrorAction SilentlyContinue
+    } elseif ($CertificateThumbprint) {
+        $env:EXCHANGE_AUTH_METHOD = "certificate"
+        $env:EXCHANGE_CERTIFICATE_THUMBPRINT = $CertificateThumbprint
         Remove-Item Env:EXCHANGE_USERNAME, Env:EXCHANGE_PASSWORD -ErrorAction SilentlyContinue
     } else {
         $env:EXCHANGE_AUTH_METHOD = "password"
@@ -278,7 +299,7 @@ try {
     if ($Step -eq "check") {
         Write-Host ""
         Write-Host "Check passed: the provider connects to $Server and reads the organization." -ForegroundColor Green
-        Write-Host "Run the full cycle with: .\run.ps1 -Server $Server $(if ($Integrated) { '-Integrated' } else { "-Username $Username" })"
+        Write-Host "Run the full cycle with: .\run.ps1 -Server $Server $($authText -replace ' \(as .*\)$', '')"
         return
     }
 

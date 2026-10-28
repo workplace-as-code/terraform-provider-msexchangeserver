@@ -13,6 +13,8 @@
 #   -Case servers-down      : two servers, neither answers
 #   -Case servers-maint     : two servers, the health page of the first one fails
 #   -Case servers-noprobe   : two servers, no health page answers
+#   -Case certificate       : EXCHANGE_BRIDGE_AUTH_METHOD=certificate and a thumbprint
+#   -Case certificate-missing : the same, and the certificate is not in the store
 param([string]$Script, [string]$Case)
 
 $ErrorActionPreference = "Stop"
@@ -31,8 +33,14 @@ function Test-FakeExchangeHealth([string]$Name) {
     }
 }
 Set-Alias -Name Test-ExchangeHealth -Value Test-FakeExchangeHealth -Scope Global
+# The same for the lookup of the client certificate in the Windows store.
+function Find-FakeClientCertificate([string]$Thumbprint) {
+    if ($Case -eq "certificate-missing") { return $null }
+    return "certificate $Thumbprint"
+}
+Set-Alias -Name Find-ClientCertificate -Value Find-FakeClientCertificate -Scope Global
 function New-PSSession {
-    param($ConfigurationName, $ConnectionUri, $Authentication, $Credential, $SessionOption)
+    param($ConfigurationName, $ConnectionUri, $Authentication, $Credential, $SessionOption, $CertificateThumbprint)
     $global:Attempts += @("$ConnectionUri")
     if ($Case -eq "servers-auth") { throw "WinRM cannot process the request: Kerberos error" }
     if (($Case -eq "servers" -and "$ConnectionUri" -like "*exch01*") -or $Case -eq "servers-down") {
@@ -44,6 +52,7 @@ function New-PSSession {
         ConnectionUri  = "$ConnectionUri"
         Authentication = "$Authentication"
         Credential     = $PSBoundParameters.ContainsKey("Credential")
+        CertificateThumbprint = "$CertificateThumbprint"
     }
     "session"
 }
@@ -65,6 +74,7 @@ switch ($Case) {
     }
     "password-nouser"  { $env:EXCHANGE_BRIDGE_AUTH_METHOD = "password"; $env:EXCHANGE_BRIDGE_PASSWORD = "pw" }
     { $_ -like "integrated*" } { $env:EXCHANGE_BRIDGE_AUTH_METHOD = "integrated" }
+    { $_ -like "certificate*" } { $env:EXCHANGE_BRIDGE_AUTH_METHOD = "certificate"; $env:EXCHANGE_BRIDGE_CERTIFICATE_THUMBPRINT = "0123456789ABCDEF0123456789ABCDEF01234567" }
     default { throw "unknown case $Case" }
 }
 $env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER = if ($Case -like "integrated-dc*") { "dc01.contoso.local" } else { "" }

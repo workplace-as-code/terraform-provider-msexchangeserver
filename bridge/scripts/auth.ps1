@@ -9,6 +9,11 @@
 #   password    Username and the password in EXCHANGE_BRIDGE_PASSWORD (default).
 #   integrated  Mailbox role only: Kerberos with the Windows identity of this
 #               process (a CI runner service or a scheduled task), no credential.
+#   certificate Mailbox role only: HTTPS (https://<server>/PowerShell/) with the
+#               client certificate whose thumbprint is in
+#               EXCHANGE_BRIDGE_CERTIFICATE_THUMBPRINT, from the Personal store of
+#               this process's account. Exchange maps it to an account through
+#               altSecurityIdentities.
 #
 # The role (EXCHANGE_BRIDGE_ROLE, set by the Go client) picks the connection:
 #   Mailbox  Exchange remote PowerShell (http://<server>/PowerShell/) with
@@ -89,13 +94,14 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
     $method = if ($env:EXCHANGE_BRIDGE_AUTH_METHOD) { $env:EXCHANGE_BRIDGE_AUTH_METHOD } else { "password" }
 
     if (-not $Server) { throw "server is required" }
-    if ($method -eq "integrated" -and $Role -eq "Edge") {
-        throw "integrated authentication is only available with the Mailbox role"
+    if ($method -ne "password" -and $Role -eq "Edge") {
+        throw "$method authentication is only available with the Mailbox role"
     }
-    # With integrated authentication, no credential: New-PSSession uses the
-    # Kerberos ticket of the account this process runs as.
+    # Integrated and certificate authentication pass no credential: New-PSSession
+    # uses the Kerberos ticket of the account this process runs as, or the
+    # client certificate.
     $credential = @{}
-    if ($method -ne "integrated") {
+    if ($method -eq "password") {
         if (-not $Username) { throw "username is required" }
         $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
         $cred           = New-Object System.Management.Automation.PSCredential($Username, $securePassword)
@@ -125,6 +131,27 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
     # No certificate check is skipped: an HTTPS endpoint must present a
     # certificate this machine trusts, issued for the name in Server.
     $sessionOpts = New-PSSessionOption -Culture en-US -UICulture en-US
+
+    # Kerberos over HTTP, the session being encrypted by Kerberos; a client
+    # certificate needs HTTPS.
+    $scheme = "http"
+    $connection = @{ Authentication = "Kerberos" }
+    # Portable .NET: WindowsIdentity is not available outside Windows (unit tests)
+    $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
+    if ($method -eq "certificate") {
+        function Find-ClientCertificate([string]$Thumbprint) {
+            $cert = Get-Item "Cert:\CurrentUser\My\$Thumbprint" -ErrorAction SilentlyContinue
+            if ($cert -and $cert.HasPrivateKey) { return $cert }
+            return $null
+        }
+        $thumbprint = "$env:EXCHANGE_BRIDGE_CERTIFICATE_THUMBPRINT"
+        if (-not $thumbprint) { throw "certificate_thumbprint is required" }
+        if (-not (Find-ClientCertificate $thumbprint)) {
+            throw "No certificate with the thumbprint $thumbprint and its private key in the Personal store of $account (Cert:\CurrentUser\My). Import it there while logged on as that account, or run Terraform as the account whose store holds it."
+        }
+        $scheme = "https"
+        $connection = @{ CertificateThumbprint = $thumbprint }
+    }
 
     # Server holds one FQDN, or several separated by commas (provider setting
     # servers), tried in order.
@@ -158,9 +185,9 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
             try {
                 $session = New-PSSession `
                     -ConfigurationName Microsoft.Exchange `
-                    -ConnectionUri "http://$Server/PowerShell/" `
-                    -Authentication Kerberos `
+                    -ConnectionUri "${scheme}://$Server/PowerShell/" `
                     -SessionOption $sessionOpts `
+                    @connection `
                     @credential
                 break
             } catch {
@@ -178,12 +205,13 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
     } catch {
         $tried = if ($skipped) { " Servers tried before: $($skipped -join ' ')" } else { "" }
         if ($method -eq "integrated") {
-            # Portable .NET: WindowsIdentity is not available outside Windows (unit tests)
-            $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
             # The advice only fits authentication failures: an Exchange server
             # that is down (HTTP 503) has nothing to do with the account.
             $advice = if ("$_" -match $authFailure) { " With auth_method = `"integrated`": this machine must be joined to the domain, server must be the FQDN registered in Active Directory, and the account running Terraform needs an Exchange role group." } else { "" }
             throw "Failed to connect to Exchange Server ($Server) as ${account}: $_.$advice$tried"
+        }
+        if ($method -eq "certificate") {
+            throw "Failed to connect to Exchange Server ($Server) with the certificate ${thumbprint}: $_.$tried"
         }
         throw "Failed to connect to Exchange Server ($Server): $_$tried"
     }
