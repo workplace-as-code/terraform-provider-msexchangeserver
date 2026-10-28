@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/list"
@@ -28,11 +29,14 @@ type exchangeProvider struct {
 // optional: it can also come from an EXCHANGE_* environment variable.
 type exchangeProviderModel struct {
 	Server   types.String `tfsdk:"server"`
+	Servers  types.List   `tfsdk:"servers"`
 	Username types.String `tfsdk:"username"`
 	Password types.String `tfsdk:"password"`
 	Role     types.String `tfsdk:"role"`
 
 	AuthMethod types.String `tfsdk:"auth_method"`
+
+	DomainController types.String `tfsdk:"domain_controller"`
 }
 
 // New returns a factory function that creates the provider.
@@ -59,9 +63,18 @@ func (p *exchangeProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			},
 			"server": schema.StringAttribute{
 				Optional: true,
-				MarkdownDescription: "FQDN of the Exchange server. With the `Mailbox` role, the FQDN registered in Active Directory (e.g. `exch01.contoso.local`): the connection uses Kerberos, which fails with an IP address, " +
-					"a short name or a load balancer name. Required, either here or via the `EXCHANGE_SERVER` environment variable. With the `Edge` role, the name WinRM reaches the Edge server with; " +
+				MarkdownDescription: "FQDN of the Exchange server. With the `Mailbox` role, the FQDN registered in Active Directory (e.g. `exch01.contoso.local`): the connection uses Kerberos, which fails with an IP address " +
+					"or a short name; a DNS alias or load balancer name needs an alternate service account (ASA), see the Authentication Guide. Required, either here or via the `EXCHANGE_SERVER` environment variable, unless `servers` is set. With the `Edge` role, the name WinRM reaches the Edge server with; " +
 					"leave it out when Terraform runs on the Edge server itself.",
+			},
+			"servers": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				MarkdownDescription: "FQDNs of Exchange servers, as registered in Active Directory, tried in order: each connection goes to the first server that accepts it, and servers whose " +
+					"`/PowerShell/healthcheck.htm` does not answer 200 (down or in maintenance) are tried last. Use it instead of `server`. An authentication failure is not retried on the next server. Exchange chooses the server that runs the commands, " +
+					"whatever server the provider connects to: the list does not cover the failure of that server. `Mailbox` role only. " +
+					"Can also be set via the `EXCHANGE_SERVERS` environment variable, comma-separated.",
+				Validators: []validator.List{listvalidator.SizeAtLeast(1)},
 			},
 			"auth_method": schema.StringAttribute{
 				Optional: true,
@@ -80,6 +93,12 @@ func (p *exchangeProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 				Optional:            true,
 				Sensitive:           true,
 				MarkdownDescription: "Password of `username`. Not used with `auth_method = \"integrated\"`. Can also be set via the `EXCHANGE_PASSWORD` environment variable.",
+			},
+			"domain_controller": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "FQDN of the domain controller every session reads from and writes to (`Set-ADServerSettings -PreferredServer`), " +
+					"so that two runs served by different Exchange servers see the same data. If it is unavailable, the connection fails. " +
+					"Leave it out to let Exchange choose. `Mailbox` role only. Can also be set via the `EXCHANGE_DOMAIN_CONTROLLER` environment variable.",
 			},
 		},
 	}

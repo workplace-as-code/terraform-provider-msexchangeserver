@@ -89,12 +89,15 @@ func TestAuthConnects(t *testing.T) {
 	}
 	type result struct {
 		Connected *struct {
-			ConnectionUri  string
-			Authentication string
-			Credential     bool
+			ConnectionUri   string
+			Authentication  string
+			Credential      bool
+			PreferredServer string
 		} `json:"connected"`
-		Error string `json:"error"`
-		User  string `json:"user"`
+		Error    string   `json:"error"`
+		User     string   `json:"user"`
+		Attempts []string `json:"attempts"`
+		Probes   []string `json:"probes"`
 	}
 	connect := func(t *testing.T, name string) result {
 		t.Helper()
@@ -127,6 +130,24 @@ func TestAuthConnects(t *testing.T) {
 		if r.Error != "" || r.Connected == nil || r.Connected.Credential || r.Connected.Authentication != "Kerberos" {
 			t.Errorf("got %+v, error %q: want Kerberos without a credential", r.Connected, r.Error)
 		}
+		if len(r.Probes) != 0 {
+			t.Errorf("health page probed with a single server: %v", r.Probes)
+		}
+		if r.Connected != nil && r.Connected.PreferredServer != "" {
+			t.Errorf("session pinned to %q without a domain controller", r.Connected.PreferredServer)
+		}
+	})
+	t.Run("integrated-dc", func(t *testing.T) {
+		r := connect(t, "integrated-dc")
+		if r.Error != "" || r.Connected == nil || r.Connected.PreferredServer != "dc01.contoso.local" {
+			t.Errorf("got %+v, error %q: want the session pinned to dc01.contoso.local", r.Connected, r.Error)
+		}
+	})
+	t.Run("integrated-dc-fails", func(t *testing.T) {
+		r := connect(t, "integrated-dc-fails")
+		if !strings.Contains(r.Error, "Failed to use the domain controller dc01.contoso.local") || !strings.Contains(r.Error, "suitability") {
+			t.Errorf("error = %q", r.Error)
+		}
 	})
 	t.Run("integrated-fails", func(t *testing.T) {
 		r := connect(t, "integrated-fails")
@@ -137,6 +158,48 @@ func TestAuthConnects(t *testing.T) {
 			if !strings.Contains(r.Error, want) {
 				t.Errorf("error lacks %q: %s", want, r.Error)
 			}
+		}
+	})
+	// servers: the next server is tried when one does not answer, never after
+	// an authentication failure (each try is a failed logon of the account).
+	t.Run("servers", func(t *testing.T) {
+		r := connect(t, "servers")
+		if r.Error != "" || r.Connected == nil || r.Connected.ConnectionUri != "http://exch02.contoso.local/PowerShell/" {
+			t.Errorf("got %+v, error %q: want the second server", r.Connected, r.Error)
+		}
+	})
+	t.Run("servers-auth", func(t *testing.T) {
+		r := connect(t, "servers-auth")
+		if len(r.Attempts) != 1 || !strings.Contains(r.Error, "(exch01.contoso.local)") {
+			t.Errorf("attempts %v, error %q: want one try on the first server", r.Attempts, r.Error)
+		}
+	})
+	// A server whose health page fails (maintenance) goes after the others;
+	// when no health page answers, the configured order is kept.
+	t.Run("servers-maint", func(t *testing.T) {
+		r := connect(t, "servers-maint")
+		if r.Error != "" || len(r.Attempts) != 1 || r.Attempts[0] != "http://exch02.contoso.local/PowerShell/" || len(r.Probes) != 2 {
+			t.Errorf("attempts %v, probes %v, error %q: want the healthy second server first", r.Attempts, r.Probes, r.Error)
+		}
+	})
+	t.Run("servers-noprobe", func(t *testing.T) {
+		r := connect(t, "servers-noprobe")
+		if r.Error != "" || len(r.Attempts) != 1 || r.Attempts[0] != "http://exch01.contoso.local/PowerShell/" {
+			t.Errorf("attempts %v, error %q: want the first server, as configured", r.Attempts, r.Error)
+		}
+	})
+	t.Run("servers-down", func(t *testing.T) {
+		r := connect(t, "servers-down")
+		if len(r.Attempts) != 2 || !strings.Contains(r.Error, "(exch02.contoso.local)") || !strings.Contains(r.Error, "tried before: exch01.contoso.local:") {
+			t.Errorf("attempts %v, error %q: want both servers in the error", r.Attempts, r.Error)
+		}
+	})
+	// An Exchange server that is down is not an account problem: no advice
+	// about domain membership or role groups.
+	t.Run("integrated-503", func(t *testing.T) {
+		r := connect(t, "integrated-503")
+		if !strings.Contains(r.Error, `\`+r.User+":") || strings.Contains(r.Error, "role group") {
+			t.Errorf("error = %q", r.Error)
 		}
 	})
 }

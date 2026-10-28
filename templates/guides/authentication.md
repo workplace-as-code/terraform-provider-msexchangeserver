@@ -10,7 +10,7 @@ The provider opens a remote PowerShell session on an Exchange server, at `http:/
 ## Requirements
 
 - **A Windows machine joined to the Active Directory domain** of the Exchange organization (or to a trusted domain), to run Terraform. It uses Windows PowerShell 5.1, which is built into Windows: PowerShell 7 does not work with Exchange Server remote PowerShell, and no module needs to be installed, since the cmdlets come from the Exchange server.
-- **The FQDN of an Exchange server** in `server`, as registered in Active Directory, for example `exch01.contoso.local`. Kerberos fails with an IP address, a short name, or a DNS alias or load balancer name (unless that name has an alternate service account).
+- **The FQDN of an Exchange server** in `server`, as registered in Active Directory, for example `exch01.contoso.local`. Kerberos fails with an IP address or a short name; a DNS alias or load balancer name needs an alternate service account (see [Load balancer name](#load-balancer-name)).
 - **Network access** from that machine to a domain controller (Kerberos, port 88) and to the Exchange server (HTTP, port 80).
 - **An account** (its password in `username` / `password`, or the account Terraform runs as with [integrated authentication](#integrated-windows-authentication)) with the **Organization Management** role group, or equivalent, as `CONTOSO\svc-terraform` or `svc-terraform@contoso.local`. Exchange remote PowerShell only exposes the cmdlets that the account's management roles allow.
 
@@ -42,6 +42,32 @@ $env:EXCHANGE_PASSWORD = "your-password"
 ```
 
 A value set in the provider block takes precedence over the environment.
+
+### Several Exchange servers
+
+With `servers` instead of `server`, each connection goes to the first server in the list that accepts it, so Terraform still runs when a server is down. Servers whose `/PowerShell/healthcheck.htm` does not answer 200 (down, or in maintenance and about to restart) are tried last:
+
+```hcl
+provider "msexchangeserver" {
+  servers     = ["exch01.contoso.local", "exch02.contoso.local"]
+  auth_method = "integrated"
+}
+```
+
+Or `$env:EXCHANGE_SERVERS = "exch01.contoso.local,exch02.contoso.local"`. Limitations:
+
+- Each name is the FQDN of a server as registered in Active Directory.
+- An authentication failure is not retried on the next server: each try would count as a failed logon of the account.
+- Exchange chooses the server that runs the commands, whatever server the provider connects to: the list does not cover the failure of that server.
+
+### Load balancer name
+
+`server` can be the name of a load balancer in front of the Exchange servers, with these limitations:
+
+- The name needs an alternate service account (ASA) deployed on every Exchange server, with the SPN `HTTP/<name>`: see [Configure Kerberos authentication for load-balanced Client Access services](https://learn.microsoft.com/exchange/architecture/client-access/kerberos-auth-for-load-balanced-client-access).
+- The connection stays on `http://`: Kerberos over HTTPS does not work with Exchange remote PowerShell.
+- Exchange chooses the server that runs the commands, whatever server the load balancer picks: the load balancer does not cover the failure of that server.
+- While the Exchange servers run different cumulative updates, the load balancer needs session affinity.
 
 ---
 

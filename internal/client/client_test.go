@@ -91,6 +91,29 @@ func TestAuthMethodIsPassedToTheBridge(t *testing.T) {
 	}
 }
 
+// The domain controller reaches auth.ps1 only when it is set: a value left in
+// Terraform's own environment must not pin the sessions.
+func TestDomainControllerIsPassedToTheBridge(t *testing.T) {
+	t.Setenv(EnvBridgeDomainController, "inherited.contoso.local")
+	pinned := &Client{config: Config{DomainController: "dc01.contoso.local"}}
+	env := strings.Join(pinned.buildEnv(), "\n")
+	if !strings.Contains(env, EnvBridgeDomainController+"=dc01.contoso.local") || strings.Contains(env, "inherited") {
+		t.Errorf("pinned client: child environment has the wrong domain controller:\n%s", env)
+	}
+	if env := strings.Join((&Client{}).buildEnv(), "\n"); strings.Contains(env, EnvBridgeDomainController) {
+		t.Error("a domain controller reached the child environment although none is set")
+	}
+}
+
+// auth.ps1 receives the servers in -Server, in the configured order.
+func TestServersArePassedInOrder(t *testing.T) {
+	c := &Client{config: Config{Servers: []string{"exch02.contoso.local", "exch01.contoso.local"}}}
+	_, args := c.connectionArgs("x.ps1")
+	if !strings.Contains(strings.Join(args, " "), "-Server exch02.contoso.local,exch01.contoso.local -Username") {
+		t.Errorf("args = %v", args)
+	}
+}
+
 func TestBuildArgsIsDeterministic(t *testing.T) {
 	c := &Client{}
 	params := map[string]string{"B": "2", "A": "1", "C": "3"}

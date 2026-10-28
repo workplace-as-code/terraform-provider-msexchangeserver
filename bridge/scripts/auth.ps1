@@ -21,6 +21,9 @@
 #            snap-in locally (current Windows account, a local administrator).
 #            With Server, a WinRM session (Negotiate) to the Edge server with a
 #            local administrator account loads the snap-in and imports it.
+#
+# EXCHANGE_BRIDGE_DOMAIN_CONTROLLER (optional, Mailbox role, set by the Go
+# client): the domain controller every session reads from and writes to.
 
 param(
     [string]$Server   = "",
@@ -123,24 +126,78 @@ $BridgeRole = if ($env:EXCHANGE_BRIDGE_ROLE) { $env:EXCHANGE_BRIDGE_ROLE } else 
     # certificate this machine trusts, issued for the name in Server.
     $sessionOpts = New-PSSessionOption -Culture en-US -UICulture en-US
 
+    # Server holds one FQDN, or several separated by commas (provider setting
+    # servers), tried in order.
+    $candidates = @("$Server" -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+    # With several servers, those whose health page does not answer 200 (down,
+    # or in maintenance and about to restart) move to the end of the list. They
+    # are still tried: a probe blocked on the way must not stop Terraform.
+    function Test-ExchangeHealth([string]$Name) {
+        try {
+            $request = [System.Net.WebRequest]::Create("http://$Name/PowerShell/healthcheck.htm")
+            # Direct, like WinRM, which does not use the web proxy of the machine
+            $request.Proxy   = $null
+            $request.Timeout = 5000
+            $response = $request.GetResponse()
+            try { return [int]$response.StatusCode -eq 200 } finally { $response.Close() }
+        } catch {
+            return $false
+        }
+    }
+    if ($candidates.Count -gt 1) {
+        $healthy = @($candidates | Where-Object { Test-ExchangeHealth $_ })
+        $candidates = @($healthy) + @($candidates | Where-Object { $healthy -notcontains $_ })
+    }
+
+    $authFailure = "Kerberos|Access is denied|logon|authenticat|management roles"
+    $skipped = @()
     try {
-        $session = New-PSSession `
-            -ConfigurationName Microsoft.Exchange `
-            -ConnectionUri "http://$Server/PowerShell/" `
-            -Authentication Kerberos `
-            -SessionOption $sessionOpts `
-            @credential
+        foreach ($candidate in $candidates) {
+            $Server = $candidate
+            try {
+                $session = New-PSSession `
+                    -ConfigurationName Microsoft.Exchange `
+                    -ConnectionUri "http://$Server/PowerShell/" `
+                    -Authentication Kerberos `
+                    -SessionOption $sessionOpts `
+                    @credential
+                break
+            } catch {
+                # Another server cannot fix an authentication failure, and each
+                # try counts as a failed logon of the account (lockout).
+                if ($candidate -eq $candidates[-1] -or "$_" -match $authFailure) { throw }
+                $skipped += "${candidate}: $_"
+            }
+        }
 
         # Import-PSSession alone imports into the calling script's scope, which
         # disappears when the script ends. -Global keeps the cmdlets available to
         # later requests served by the same persistent bridge host process.
         Import-Module (Import-PSSession $session -DisableNameChecking -AllowClobber) -Global -DisableNameChecking | Out-Null
     } catch {
+        $tried = if ($skipped) { " Servers tried before: $($skipped -join ' ')" } else { "" }
         if ($method -eq "integrated") {
             # Portable .NET: WindowsIdentity is not available outside Windows (unit tests)
             $account = "$([Environment]::UserDomainName)\$([Environment]::UserName)"
-            throw "Failed to connect to Exchange Server ($Server) as ${account}: $_. With auth_method = `"integrated`": this machine must be joined to the domain, server must be the FQDN registered in Active Directory, and the account running Terraform needs an Exchange role group."
+            # The advice only fits authentication failures: an Exchange server
+            # that is down (HTTP 503) has nothing to do with the account.
+            $advice = if ("$_" -match $authFailure) { " With auth_method = `"integrated`": this machine must be joined to the domain, server must be the FQDN registered in Active Directory, and the account running Terraform needs an Exchange role group." } else { "" }
+            throw "Failed to connect to Exchange Server ($Server) as ${account}: $_.$advice$tried"
         }
-        throw "Failed to connect to Exchange Server ($Server): $_"
+        throw "Failed to connect to Exchange Server ($Server): $_$tried"
+    }
+
+    # Pin the session to one domain controller, so that every request reads and
+    # writes the same copy of Active Directory, whatever domain controllers the
+    # Exchange server picked. Exchange refuses an unreachable domain controller
+    # at once. On failure the bridge recycles this worker: the next request
+    # connects again instead of reusing an unpinned session.
+    if ($env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER) {
+        try {
+            Set-ADServerSettings -PreferredServer $env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER
+        } catch {
+            throw "Failed to use the domain controller $($env:EXCHANGE_BRIDGE_DOMAIN_CONTROLLER) on Exchange Server ($Server): $_"
+        }
     }
 } $Server $Username $Password $BridgeRole
