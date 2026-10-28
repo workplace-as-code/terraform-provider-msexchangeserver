@@ -4,18 +4,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/workplace-as-code/terraform-provider-msexchangeserver/internal/client"
 )
 
 // authEnv lists every variable resolveConfig reads. Each case starts with all
 // of them empty, so the shell running the tests cannot change the result.
-var authEnv = []string{"EXCHANGE_SERVER", "EXCHANGE_USERNAME", "EXCHANGE_PASSWORD", "EXCHANGE_ROLE", "EXCHANGE_AUTH_METHOD", "EXCHANGE_DOMAIN_CONTROLLER"}
+var authEnv = []string{"EXCHANGE_SERVER", "EXCHANGE_SERVERS", "EXCHANGE_USERNAME", "EXCHANGE_PASSWORD", "EXCHANGE_ROLE", "EXCHANGE_AUTH_METHOD", "EXCHANGE_DOMAIN_CONTROLLER"}
 
 // secretPassword must never appear in a diagnostic.
 const secretPassword = "pw-secret"
 
 // model builds a provider block from attribute values; absent keys are null.
+// "servers" is a comma-separated list.
 func model(attrs map[string]string) exchangeProviderModel {
 	v := func(name string) types.String {
 		if s, ok := attrs[name]; ok {
@@ -23,8 +25,17 @@ func model(attrs map[string]string) exchangeProviderModel {
 		}
 		return types.StringNull()
 	}
+	servers := types.ListNull(types.StringType)
+	if list, ok := attrs["servers"]; ok {
+		var elems []attr.Value
+		for _, s := range strings.Split(list, ",") {
+			elems = append(elems, types.StringValue(s))
+		}
+		servers = types.ListValueMust(types.StringType, elems)
+	}
 	return exchangeProviderModel{
 		Server:     v("server"),
+		Servers:    servers,
 		Username:   v("username"),
 		Password:   v("password"),
 		Role:       v("role"),
@@ -40,11 +51,12 @@ func TestResolveConfig(t *testing.T) {
 	integrated := map[string]string{"server": "exch01.contoso.local", "auth_method": "integrated"}
 
 	cases := map[string]struct {
-		attrs      map[string]string
-		env        map[string]string
-		wantError  string // substring of a diagnostic summary, "" when the configuration is valid
-		wantMethod string
-		wantDC     string
+		attrs       map[string]string
+		env         map[string]string
+		wantError   string // substring of a diagnostic summary, "" when the configuration is valid
+		wantMethod  string
+		wantDC      string
+		wantServers string // comma-separated
 	}{
 		"password by default": {attrs: withUser, wantMethod: client.AuthPassword},
 		"password without username": {
@@ -102,6 +114,36 @@ func TestResolveConfig(t *testing.T) {
 			attrs:     map[string]string{"role": "Edge", "domain_controller": "dc01.contoso.local"},
 			wantError: "domain_controller not available on Edge",
 		},
+		"servers": {
+			attrs:       map[string]string{"servers": "exch01.contoso.local, exch02.contoso.local", "auth_method": "integrated"},
+			wantMethod:  client.AuthIntegrated,
+			wantServers: "exch01.contoso.local,exch02.contoso.local",
+		},
+		"servers from the environment": {
+			attrs:       map[string]string{"auth_method": "integrated"},
+			env:         map[string]string{"EXCHANGE_SERVERS": "exch01.contoso.local,,exch02.contoso.local"},
+			wantMethod:  client.AuthIntegrated,
+			wantServers: "exch01.contoso.local,exch02.contoso.local",
+		},
+		"servers in the block ignore EXCHANGE_SERVER": {
+			attrs:       map[string]string{"servers": "exch01.contoso.local", "auth_method": "integrated"},
+			env:         map[string]string{"EXCHANGE_SERVER": "exch09.contoso.local"},
+			wantMethod:  client.AuthIntegrated,
+			wantServers: "exch01.contoso.local",
+		},
+		"server and servers": {
+			attrs:     map[string]string{"server": "exch01.contoso.local", "servers": "exch02.contoso.local", "auth_method": "integrated"},
+			wantError: "Conflicting server settings",
+		},
+		"EXCHANGE_SERVER and EXCHANGE_SERVERS": {
+			attrs:     map[string]string{"auth_method": "integrated"},
+			env:       map[string]string{"EXCHANGE_SERVER": "exch01.contoso.local", "EXCHANGE_SERVERS": "exch02.contoso.local"},
+			wantError: "Conflicting server settings",
+		},
+		"servers on Edge": {
+			attrs:     map[string]string{"role": "Edge", "servers": "edge01,edge02", "username": "EDGE01\\Administrator"},
+			wantError: "servers not available on Edge",
+		},
 	}
 
 	for name, c := range cases {
@@ -135,6 +177,9 @@ func TestResolveConfig(t *testing.T) {
 			}
 			if cfg.DomainController != c.wantDC {
 				t.Errorf("DomainController = %q, want %q", cfg.DomainController, c.wantDC)
+			}
+			if got := strings.Join(cfg.Servers, ","); got != c.wantServers {
+				t.Errorf("Servers = %q, want %q", got, c.wantServers)
 			}
 			if cfg.AuthMethod == client.AuthIntegrated && (cfg.Username != "" || cfg.Password != "") {
 				t.Errorf("integrated configuration carries credentials: %q / %q", cfg.Username, cfg.Password)

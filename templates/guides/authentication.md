@@ -43,6 +43,23 @@ $env:EXCHANGE_PASSWORD = "your-password"
 
 A value set in the provider block takes precedence over the environment.
 
+### Several Exchange servers
+
+With `servers` instead of `server`, each connection goes to the first server in the list that accepts it, so Terraform still runs when a server is down. Servers whose `/PowerShell/healthcheck.htm` does not answer 200 (down, or in maintenance and about to restart) are tried last:
+
+```hcl
+provider "msexchangeserver" {
+  servers     = ["exch01.contoso.local", "exch02.contoso.local"]
+  auth_method = "integrated"
+}
+```
+
+Or `$env:EXCHANGE_SERVERS = "exch01.contoso.local,exch02.contoso.local"`. Limitations:
+
+- Each name is the FQDN of a server as registered in Active Directory.
+- An authentication failure is not retried on the next server: each try would count as a failed logon of the account.
+- Exchange chooses the server that runs the commands, whatever server the provider connects to: the list does not cover the failure of that server.
+
 ### Load balancer name
 
 `server` can be the name of a load balancer in front of the Exchange servers, with these limitations:

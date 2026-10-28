@@ -105,6 +105,15 @@ func TestDomainControllerIsPassedToTheBridge(t *testing.T) {
 	}
 }
 
+// auth.ps1 receives the servers in -Server, in the configured order.
+func TestServersArePassedInOrder(t *testing.T) {
+	c := &Client{config: Config{Servers: []string{"exch02.contoso.local", "exch01.contoso.local"}}}
+	_, args := c.connectionArgs("x.ps1")
+	if !strings.Contains(strings.Join(args, " "), "-Server exch02.contoso.local,exch01.contoso.local -Username") {
+		t.Errorf("args = %v", args)
+	}
+}
+
 func TestBuildArgsIsDeterministic(t *testing.T) {
 	c := &Client{}
 	params := map[string]string{"B": "2", "A": "1", "C": "3"}

@@ -85,7 +85,10 @@ const (
 
 // Config holds the Exchange Server connection parameters.
 type Config struct {
-	Server   string // FQDN of an Exchange server; empty for a local Edge Transport server
+	Server string // FQDN of an Exchange server; empty for a local Edge Transport server
+	// Servers replaces Server with several Exchange servers (Mailbox role),
+	// tried in order by auth.ps1.
+	Servers  []string
 	Username string
 	Password string
 	Role     string // RoleMailbox (default) or RoleEdge
@@ -231,9 +234,18 @@ func (c *Client) connectionArgs(scriptPath string) (string, []string) {
 	return "powershell.exe", []string{
 		"-NonInteractive", "-NoProfile", "-ExecutionPolicy", "Bypass",
 		"-File", scriptPath,
-		"-Server", c.config.Server,
+		"-Server", c.serverArg(),
 		"-Username", c.config.Username,
 	}
+}
+
+// serverArg is the -Server value of auth.ps1: the server, or the servers
+// joined with commas (an FQDN never contains one), which auth.ps1 tries in order.
+func (c *Client) serverArg() string {
+	if len(c.config.Servers) > 0 {
+		return strings.Join(c.config.Servers, ",")
+	}
+	return c.config.Server
 }
 
 // hostArgs is the command line of a persistent bridge host process.
