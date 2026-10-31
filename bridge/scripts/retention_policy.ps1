@@ -13,9 +13,7 @@ param(
     [string]$Identity             = "",
     [string]$Name                 = "",
     # Settings: only the ones set in the Terraform configuration are sent.
-    [string]$RetentionPolicyTagLinks,
-    [string]$IsDefault,
-    [string]$IsDefaultArbitrationMailbox
+    [string]$RetentionPolicyTagLinks
 )
 
 Set-StrictMode -Version Latest
@@ -25,7 +23,7 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot/common.ps1"
 
 # Only the settings set in the Terraform configuration are sent.
-$settings = ConvertTo-BridgeSplat $PSBoundParameters -Bool IsDefault -Csv RetentionPolicyTagLinks
+$settings = ConvertTo-BridgeSplat $PSBoundParameters -Csv RetentionPolicyTagLinks
 
 
 

@@ -228,7 +228,7 @@ try {
         Write-Info "Certificate authentication as $account"
         $credential = @{ CertificateThumbprint = $CertificateThumbprint }
     } else {
-        $cred = Get-Credential -UserName $Username -Message "Exchange Server account (Organization Management)"
+        $cred = Get-Credential -UserName $Username -Message "Exchange Server account of the provider"
         if ($null -eq $cred) { Stop-Test "No credential given" }
         $credential.Credential = $cred
     }
@@ -237,7 +237,8 @@ try {
         # The Exchange endpoint runs remote commands without the PowerShell
         # language (NoLanguage mode): only plain cmdlet calls, results processed here.
         $domains = @(Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain })
-        $servers = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer })
+        # Only to show the version: the provider's role group has no Get-ExchangeServer.
+        $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
     } finally {
         Remove-PSSession $session
     }

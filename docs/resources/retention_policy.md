@@ -40,17 +40,17 @@ resource "msexchangeserver_retention_policy" "compliance_7yr" {
 
 ### Optional
 
-- `is_default` (Boolean) Set this policy as the default retention policy applied to new mailboxes.
 - `retention_policy_tag_links` (Set of String) Names of the retention policy tags linked to this policy.
 
 ### Read-Only
 
 - `id` (String) The unique identifier of the retention policy.
+- `is_default` (Boolean) Whether this is the default retention policy applied to new mailboxes (read-only).
 - `is_default_arbitration_mailbox` (Boolean) Whether this is the default retention policy for arbitration mailboxes (read-only).
 
 ## Permissions
 
-The provider's account needs the **Retention Management** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs the retention policy cmdlets of the **Retention Management** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only these cmdlets. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

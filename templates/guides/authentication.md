@@ -12,7 +12,7 @@ The provider opens a remote PowerShell session on an Exchange server, at `http:/
 - **A Windows machine joined to the Active Directory domain** of the Exchange organization (or to a trusted domain), to run Terraform. It uses Windows PowerShell 5.1, which is built into Windows: PowerShell 7 does not work with Exchange Server remote PowerShell, and no module needs to be installed, since the cmdlets come from the Exchange server.
 - **The FQDN of an Exchange server** in `server`, as registered in Active Directory, for example `exch01.contoso.local`. Kerberos fails with an IP address or a short name; a DNS alias or load balancer name needs an alternate service account (see [Load balancer name](#load-balancer-name)).
 - **Network access** from that machine to a domain controller (Kerberos, port 88) and to the Exchange server (HTTP, port 80).
-- **An account** (its password in `username` / `password`, or the account Terraform runs as with [integrated authentication](#integrated-windows-authentication)) with the **Organization Management** role group, or equivalent, as `CONTOSO\svc-terraform` or `svc-terraform@contoso.local`. Exchange remote PowerShell only exposes the cmdlets that the account's management roles allow.
+- **An account** (its password in `username` / `password`, or the account Terraform runs as with [integrated authentication](#integrated-windows-authentication)) in the role group that [`tools/new_role_group.ps1`](#permissions) creates, or in **Organization Management**, as `CONTOSO\svc-terraform` or `svc-terraform@contoso.local`. Exchange remote PowerShell only exposes the cmdlets that the account's management roles allow.
 
 Check the connection from the Terraform machine before running Terraform:
 
@@ -22,6 +22,39 @@ $session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "h
 Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain }
 Remove-PSSession $session
 ```
+
+## Permissions
+
+**Least-privilege role group (recommended)**
+
+[`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) creates a role group with only the management roles that contain the cmdlets the provider runs, and adds the write account to it. Unlike Organization Management, the group cannot create, delete or change mailboxes and other recipients, nor manage servers, databases or connectors. Its roles:
+
+- **E-Mail Address Policies**
+- **Organization Configuration**
+- **Organization Transport Settings**
+- **Recipient Policies**
+- **Remote and Accepted Domains**
+- **Transport Rules**
+- `terraform-msexchangeserver Retention`, a custom role that the script creates from **Retention Management** with only the retention policy and tag cmdlets, `Get-Mailbox` and `Set-ADServerSettings` (used with `domain_controller`). The built-in role can also set litigation holds and disable accounts.
+
+A read-only account (for `terraform plan`) needs no new role group: the built-in **View-Only Organization Management** role group contains every cmdlet the provider reads with.
+
+The script first checks with Exchange that these roles contain every cmdlet of the provider, and stops if one is missing. Run it in the Exchange Management Shell as a member of Organization Management:
+
+```powershell
+# 1. Show the roles the provider needs (changes nothing)
+.\tools\new_role_group.ps1
+
+# 2. Create the "terraform-msexchangeserver" role group and add the accounts
+.\tools\new_role_group.ps1 -Member CONTOSO\svc-tf-exch-write `
+  -ReadMember CONTOSO\svc-tf-exch-read -Apply
+```
+
+Then remove the write account from Organization Management or any other role group that grants more. Run the script again after upgrading the provider: it adds the roles a new version needs to the existing group, and lists the roles of the group that are not in the list above: `-Apply -RemoveExtraRoles` removes them.
+
+**Organization Management**
+
+Simpler, but broader: the account can run every Exchange cmdlet, including recipient, server and database management.
 
 ## Configuration
 
@@ -109,7 +142,7 @@ The Exchange rights are those of the account the runner runs as. To keep `terraf
 | Runner | Account | Exchange role group | Runs |
 |---|---|---|---|
 | tag `exchange-read` | `CONTOSO\svc-tf-exch-read` | View-Only Organization Management | `plan` on merge requests, scheduled drift detection |
-| tag `exchange-write` | `CONTOSO\svc-tf-exch-write` | Organization Management, or a role group with only the management roles listed in the **Permissions** section of each resource you manage | `apply` only, from the default branch |
+| tag `exchange-write` | `CONTOSO\svc-tf-exch-write` | `terraform-msexchangeserver`, created by [`tools/new_role_group.ps1`](#permissions) | `apply` only, from the default branch |
 
 Register the write runner as a **protected** runner, so that it only runs jobs of protected branches: a merge request cannot run code under the write account. The pipeline picks the runner by tag:
 

@@ -71,7 +71,7 @@ resource "msexchangeserver_transport_rule" "junk_suspicious_subjects" {
 
 ## Permissions
 
-The provider's account needs the **Transport Rules** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs the **Transport Rules** management role, which the role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) and the **Organization Management** role group include. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 
