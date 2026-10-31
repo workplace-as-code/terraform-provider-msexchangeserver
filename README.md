@@ -70,7 +70,7 @@ Data sources: `msexchangeserver_accepted_domain`, `msexchangeserver_accepted_dom
 
 ### Requirements
 - Terraform >= 1.5, on a Windows machine joined to the Active Directory domain, with Windows PowerShell 5.1 (built into Windows)
-- The FQDN of an Exchange server, and an account with the **Organization Management** role group or equivalent (see the [Authentication guide](docs/guides/authentication.md))
+- The FQDN of an Exchange server, and an account in an Exchange role group. [`tools/new_role_group.ps1`](tools/new_role_group.ps1) creates one with only the roles the provider needs, instead of Organization Management (see the [Authentication guide](docs/guides/authentication.md))
 
 The PowerShell bridge scripts are embedded in the provider binary: nothing else needs to be installed. The provider keeps a few PowerShell processes open during a run, so the remote session is opened once per process instead of once per resource (see [Performance tuning](#performance-tuning)).
 
