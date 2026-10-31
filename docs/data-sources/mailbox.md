@@ -42,7 +42,7 @@ output "helpdesk_address" {
 
 ## Permissions
 
-The provider's account needs the **Mail Recipient Creation** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs a management role that grants `Get-Mailbox`, such as the read-only **View-Only Recipients**, which **View-Only Organization Management** includes. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants it through its custom retention role. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

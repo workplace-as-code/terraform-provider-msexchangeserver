@@ -111,7 +111,7 @@ jobs:
         shell: powershell
         run: |
           $failed = $false
-          foreach ($f in Get-ChildItem bridge/scripts/*.ps1, test/*.ps1, test/*/*.ps1) {
+          foreach ($f in Get-ChildItem bridge/scripts/*.ps1, test/*.ps1, test/*/*.ps1, tools/*.ps1) {
             $errs = $null; $tok = $null
             [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tok, [ref]$errs) | Out-Null
             foreach ($e in $errs) { Write-Host "$($f.Name):$($e.Extent.StartLineNumber) $($e.Message)"; $failed = $true }

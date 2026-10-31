@@ -60,7 +60,7 @@ Connection errors start with `Failed to connect to Exchange Server (<server>):`,
 
 **`HTTP error page`.** Exchange answered with an error page, usually 503 Service Unavailable, instead of remote PowerShell: the Exchange server that runs the commands for the account is unavailable. Check `MSExchangePowerShellAppPool` and the Exchange services on the Exchange servers.
 
-**`Access is denied`.** The account cannot open the session. Check its password, its membership of the **Organization Management** role group (or an equivalent), and that remote PowerShell is enabled for it:
+**`Access is denied`.** The account cannot open the session. Check its password, its membership of the `terraform-msexchangeserver` role group (or Organization Management), and that remote PowerShell is enabled for it:
 
 ```powershell
 Get-User svc-terraform | Format-List RemotePowerShellEnabled
@@ -82,9 +82,9 @@ Get-User svc-terraform | Format-List RemotePowerShellEnabled
 
 ## Permissions
 
-**`The user "<domain>/<OU>/<account>" isn't assigned to any management roles`** (`AuthZ-CmdletAccessDeniedException`). The Kerberos session opened, but the account is in no Exchange role group. Exchange names the account it saw: with integrated authentication, it is the account of the CI runner service or the scheduled task, not yours. Add that account to Organization Management, or to a role group with the roles your resources need. The provider adds this advice to the error.
+**`The user "<domain>/<OU>/<account>" isn't assigned to any management roles`** (`AuthZ-CmdletAccessDeniedException`). The Kerberos session opened, but the account is in no Exchange role group. Exchange names the account it saw: with integrated authentication, it is the account of the CI runner service or the scheduled task, not yours. Add that account to the role group that `tools/new_role_group.ps1` creates, or to Organization Management. The provider adds this advice to the error.
 
-**`The term 'New-TransportRule' is not recognized` (or any other Exchange cmdlet).** Exchange remote PowerShell only contains the cmdlets that the account's management roles allow: a missing role looks like a missing cmdlet. Give the account the role that contains the cmdlet, or the Organization Management role group. The provider adds this advice to the error.
+**`The term 'New-TransportRule' is not recognized` (or any other Exchange cmdlet).** Exchange remote PowerShell only contains the cmdlets that the account's management roles allow: a missing role looks like a missing cmdlet. Run `tools/new_role_group.ps1` again: it adds the roles a new provider version needs. Otherwise give the account the role that contains the cmdlet. The provider adds this advice to the error.
 
 ## Messages in English
 

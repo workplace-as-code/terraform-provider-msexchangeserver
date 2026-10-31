@@ -42,7 +42,7 @@ Read-Only:
 
 ## Permissions
 
-The provider's account needs the **Remote and Accepted Domains** management role, which the **Organization Management** role group includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs the read-only **View-Only Configuration** management role, which **View-Only Organization Management** includes, or the **Remote and Accepted Domains** management role, which the role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) includes. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

@@ -11,7 +11,7 @@ This guide walks you through setting up the Microsoft Exchange Server provider t
 
 - A Windows machine joined to the Active Directory domain of the Exchange organization, with Terraform >= 1.5 (`terraform.exe` on the `PATH`). Windows PowerShell 5.1 is built into Windows; nothing else needs to be installed.
 - The FQDN of an Exchange server, for example `exch01.contoso.local`.
-- An account with the **Organization Management** role group, or equivalent.
+- An account in the least-privilege role group that `tools/new_role_group.ps1` creates, or in **Organization Management** (see the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#permissions)).
 
 The [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication) explains these requirements and gives a command to check the connection.
 

@@ -17,7 +17,7 @@ When something fails, start with the [Troubleshooting guide](https://registry.te
 It opens an Exchange remote PowerShell session through scripts embedded in the provider binary. The machine running Terraform needs:
 
 - Windows, joined to the Active Directory domain of the Exchange organization, with Windows PowerShell 5.1 (built into Windows). No PowerShell module needs to be installed: the cmdlets come from the Exchange server.
-- An account with the **Organization Management** role group, or equivalent. The connection uses Kerberos with the FQDN of an Exchange server, with the account's password or, with `auth_method = "integrated"`, as the account Terraform runs as (a CI runner service or a scheduled task). See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+- An account in the least-privilege role group that `tools/new_role_group.ps1` creates, or in **Organization Management**. The connection uses Kerberos with the FQDN of an Exchange server, with the account's password or, with `auth_method = "integrated"`, as the account Terraform runs as (a CI runner service or a scheduled task). See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Example Usage
 
