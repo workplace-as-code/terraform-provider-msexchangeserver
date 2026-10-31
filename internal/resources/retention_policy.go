@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -53,7 +54,13 @@ func (r *retentionPolicyResource) Schema(_ context.Context, _ resource.SchemaReq
 				ElementType:   types.StringType, Optional: true, Computed: true,
 				MarkdownDescription: "Names of the retention policy tags linked to this policy.",
 			},
-			"is_default": optionalBool("Set this policy as the default retention policy applied to new mailboxes."),
+			// Set-RetentionPolicy -IsDefault only exists in Exchange Online: on
+			// Exchange Server, no management role grants it.
+			"is_default": schema.BoolAttribute{
+				Computed:            true,
+				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+				MarkdownDescription: "Whether this is the default retention policy applied to new mailboxes (read-only).",
+			},
 			"is_default_arbitration_mailbox": schema.BoolAttribute{
 				Computed:            true,
 				MarkdownDescription: "Whether this is the default retention policy for arbitration mailboxes (read-only).",
@@ -171,6 +178,5 @@ func retentionPolicyParams(ctx context.Context, action, identity string, cfg ret
 	if known(cfg.RetentionPolicyTagLinks) {
 		p["RetentionPolicyTagLinks"] = setToCSV(ctx, cfg.RetentionPolicyTagLinks)
 	}
-	putBool(p, "IsDefault", cfg.IsDefault)
 	return p
 }

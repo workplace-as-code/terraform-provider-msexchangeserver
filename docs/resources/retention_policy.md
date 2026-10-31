@@ -40,12 +40,12 @@ resource "msexchangeserver_retention_policy" "compliance_7yr" {
 
 ### Optional
 
-- `is_default` (Boolean) Set this policy as the default retention policy applied to new mailboxes.
 - `retention_policy_tag_links` (Set of String) Names of the retention policy tags linked to this policy.
 
 ### Read-Only
 
 - `id` (String) The unique identifier of the retention policy.
+- `is_default` (Boolean) Whether this is the default retention policy applied to new mailboxes (read-only).
 - `is_default_arbitration_mailbox` (Boolean) Whether this is the default retention policy for arbitration mailboxes (read-only).
 
 ## Permissions
