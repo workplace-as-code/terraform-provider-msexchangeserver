@@ -21,6 +21,8 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_accepted_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/accepted_domain) | `Authoritative`, `InternalRelay` or `ExternalRelay` |
 | [`msexchangeserver_remote_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/remote_domain) | Auto-reply, auto-forward and formatting per external domain |
 | [`msexchangeserver_transport_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/transport_config) | Singleton: organization-wide transport settings |
+| [`msexchangeserver_send_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/send_connector) | Not on Edge (EdgeSync manages them) |
+| [`msexchangeserver_receive_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/receive_connector) | Mailbox and Edge |
 
 ## Clients, recipients and organization
 

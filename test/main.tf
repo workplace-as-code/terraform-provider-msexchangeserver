@@ -49,7 +49,9 @@ variable "phase" {
 
 locals {
   updated = var.phase == "update"
-  comment = local.updated ? "[TF-CI-TEST] updated" : "[TF-CI-TEST] created"
+  # Short name of the tested server, as Exchange shows it in identities.
+  server_name = upper(split(".", var.exchange_server)[0])
+  comment     = local.updated ? "[TF-CI-TEST] updated" : "[TF-CI-TEST] created"
 }
 
 # ---------------------------------------------------------------------------
@@ -236,4 +238,34 @@ resource "msexchangeserver_mailbox_database" "test" {
   deleted_item_retention_days = local.updated ? (
     var.test_database_retention_days >= 30 ? var.test_database_retention_days - 1 : var.test_database_retention_days + 1
   ) : var.test_database_retention_days
+}
+
+# ---------------------------------------------------------------------------
+# Connectors: disabled, with documentation addresses and domains, so that
+# they never send or accept mail.
+# ---------------------------------------------------------------------------
+
+resource "msexchangeserver_send_connector" "test" {
+  name                     = "TF-CI-Send"
+  usage                    = "Custom"
+  address_spaces           = local.updated ? ["tf-ci-test.example", "tf-ci-partner.example;10"] : ["tf-ci-test.example"]
+  smart_hosts              = ["smtp.tf-ci-test.example"]
+  dns_routing_enabled      = false
+  source_transport_servers = [local.server_name]
+  max_message_size_mb      = 10
+  require_tls              = local.updated
+  tls_auth_level           = local.updated ? "EncryptionOnly" : null
+  enabled                  = false
+}
+
+resource "msexchangeserver_receive_connector" "test" {
+  name              = "${local.server_name}\\TF-CI-Receive"
+  usage             = "Custom"
+  transport_role    = "FrontendTransport"
+  bindings          = ["0.0.0.0:2526"]
+  remote_ip_ranges  = local.updated ? ["192.0.2.10", "198.51.100.0/24"] : ["192.0.2.10"]
+  permission_groups = ["ExchangeServers"]
+  auth_mechanism    = ["Tls", "ExternalAuthoritative"]
+  banner            = local.updated ? "220 TF-CI updated" : null
+  enabled           = false
 }

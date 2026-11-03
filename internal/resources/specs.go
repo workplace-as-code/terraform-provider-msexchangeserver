@@ -94,6 +94,78 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName:    "send_connector",
+		noun:        "SendConnector",
+		script:      "send_connector.ps1",
+		description: "Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts",
+		notes: "`address_spaces` is required to create a connector. The connectors that EdgeSync creates (`EdgeSync - ...`) " +
+			"can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and " +
+			"password is not supported: the password would be stored in the Terraform state.",
+		fields: []field{
+			{
+				name: "usage", param: "Usage", kind: enumField, forceNew: true, values: []string{"Custom", "Internal", "Internet", "Partner"},
+				desc: "Purpose of the connector, which sets its default permissions: `Custom`, `Internal`, `Internet` or `Partner`. " +
+					"Only used to create the connector: changing it creates a new one.",
+			},
+			setAttr("address_spaces", "AddressSpaces", "Domains the connector routes mail to, as `contoso.com` or `contoso.com;10` "+
+				"with a cost (1 by default). `*` routes all external mail; `*.contoso.com` includes the subdomains."),
+			setAttr("smart_hosts", "SmartHosts", "Host names or IP addresses mail is sent to. Leave empty and set "+
+				"`dns_routing_enabled` to route with DNS MX records."),
+			boolAttr("dns_routing_enabled", "DNSRoutingEnabled", "Route mail with DNS MX records instead of smart hosts."),
+			setAttr("source_transport_servers", "SourceTransportServers", "Mailbox or Edge servers that send mail through the connector."),
+			int64Attr("port", "Port", "TCP port of the destination.", int64validator.Between(1, 65535)),
+			stringAttr("fqdn", "Fqdn", "Name the servers give in the HELO or EHLO command. Empty uses each server's FQDN."),
+			sizeAttr("max_message_size_mb", "MaxMessageSize", "Largest message, in megabytes, the connector sends. `0` means unlimited."),
+			boolAttr("enabled", "Enabled", "Whether the connector is used."),
+			boolAttr("frontend_proxy_enabled", "FrontendProxyEnabled", "Send outgoing mail through the Front End Transport service."),
+			boolAttr("require_tls", "RequireTLS", "Require TLS: mail waits in the queue when the destination does not offer it."),
+			enumAttr("tls_auth_level", "TlsAuthLevel", "Check made on the certificate of the destination when `require_tls` is `true`.",
+				"EncryptionOnly", "CertificateValidation", "DomainValidation"),
+			stringAttr("tls_domain", "TlsDomain", "Domain the certificate of the destination must match with `DomainValidation`."),
+			stringAttr("tls_certificate_name", "TlsCertificateName", "Certificate the servers present, as `<I>issuer<S>subject`."),
+			enumAttr("smart_host_auth_mechanism", "SmartHostAuthMechanism", "Authentication with the smart hosts.",
+				"None", "ExternalAuthoritative"),
+			enumAttr("protocol_logging_level", "ProtocolLoggingLevel", "SMTP protocol logging.", "None", "Verbose"),
+			stringAttr("comment", "Comment", "Free text about the connector."),
+		},
+	},
+	{
+		typeName: "receive_connector",
+		noun:     "ReceiveConnector",
+		script:   "receive_connector.ps1",
+		edge:     true,
+		description: "Manages a receive connector of an Exchange server, which accepts SMTP connections on given addresses " +
+			"and ports from given IP ranges",
+		notes: "`name` is the identity of the connector, `<server>\\<name>`, with the server's short name, as " +
+			"`Get-ReceiveConnector` shows it: changing it creates a new connector on that server. `bindings` is required to " +
+			"create a connector. For an application that relays mail, prefer `permission_groups = [\"ExchangeServers\"]` with " +
+			"`auth_mechanism = [\"ExternalAuthoritative\"]` on narrow `remote_ip_ranges`: it needs no Active Directory permission.",
+		fields: []field{
+			{
+				name: "usage", param: "Usage", kind: enumField, forceNew: true,
+				values: []string{"Custom", "Internet", "Internal", "Client", "Partner"},
+				desc: "Purpose of the connector, which sets its default permissions: `Custom` (default), `Internet`, `Internal`, " +
+					"`Client` or `Partner`. Only used to create the connector: changing it creates a new one.",
+			},
+			enumAttr("transport_role", "TransportRole", "Transport service of the connector on a Mailbox server.",
+				"FrontendTransport", "HubTransport"),
+			setAttr("bindings", "Bindings", "Local addresses and ports, as `0.0.0.0:25` or `[::]:25`."),
+			setAttr("remote_ip_ranges", "RemoteIPRanges", "Remote IP addresses, ranges (`10.0.0.1-10.0.0.9`) or CIDR blocks the connector accepts."),
+			setAttr("permission_groups", "PermissionGroups", "Groups allowed to use the connector: `AnonymousUsers`, `ExchangeUsers`, "+
+				"`ExchangeServers`, `ExchangeLegacyServers`, `Partners`, `Custom`."),
+			setAttr("auth_mechanism", "AuthMechanism", "Authentication offered: `None`, `Tls`, `Integrated`, `BasicAuth`, "+
+				"`BasicAuthRequireTLS`, `ExchangeServer`, `ExternalAuthoritative`."),
+			boolAttr("require_tls", "RequireTLS", "Require TLS for every connection."),
+			stringAttr("fqdn", "Fqdn", "Name the connector gives in its banner and EHLO response."),
+			stringAttr("banner", "Banner", "SMTP banner, starting with `220`. Empty uses the Exchange default."),
+			sizeAttr("max_message_size_mb", "MaxMessageSize", "Largest message, in megabytes, the connector accepts. `0` means unlimited."),
+			stringAttr("tls_certificate_name", "TlsCertificateName", "Certificate the connector presents, as `<I>issuer<S>subject`."),
+			boolAttr("enabled", "Enabled", "Whether the connector accepts connections."),
+			enumAttr("protocol_logging_level", "ProtocolLoggingLevel", "SMTP protocol logging.", "None", "Verbose"),
+			stringAttr("comment", "Comment", "Free text about the connector."),
+		},
+	},
+	{
 		typeName: "mailbox_database",
 		noun:     "MailboxDatabase",
 		adopted:  true,

@@ -98,6 +98,8 @@ $Created = [ordered]@{
     "msexchangeserver_email_address_policy.test"    = "TF-CI-AddressPolicy"
     "msexchangeserver_retention_policy.test"        = "TF-CI-Retention"
     "msexchangeserver_retention_policy_tag.test"    = "TF-CI-RetentionTag"
+    "msexchangeserver_send_connector.test"          = "TF-CI-Send"
+    "msexchangeserver_receive_connector.test"       = "$((($Server -split '\.')[0]).ToUpper())\TF-CI-Receive"
 }
 # Organization-wide objects imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this")
@@ -111,7 +113,7 @@ $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbo
     "mobile_device_mailbox_policy", "email_address_policy", "retention_policy",
     "retention_policy_tag", "organization_config", "transport_config", "owa_virtual_directory", "ecp_virtual_directory",
     "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
-    "client_access_service", "mailbox_database")
+    "client_access_service", "mailbox_database", "send_connector", "receive_connector")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }

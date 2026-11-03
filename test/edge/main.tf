@@ -11,6 +11,11 @@ terraform {
 # EXCHANGE_USERNAME and EXCHANGE_PASSWORD for a remote Edge server.
 provider "msexchangeserver" {}
 
+variable "edge_server" {
+  description = "Short name of the Edge server, as Exchange shows it in identities. Set by run.ps1."
+  type        = string
+}
+
 variable "phase" {
   description = "Set to \"update\" by run.ps1 to change the test rule in place."
   type        = string
@@ -47,6 +52,17 @@ resource "msexchangeserver_transport_rule" "test" {
   subject_contains = local.updated ? ["[TF-CI-TEST]", "[TF-CI-UPDATED]"] : ["[TF-CI-TEST]"]
   action           = local.updated ? "Reject" : "Quarantine"
   reject_message   = local.updated ? "[TF-CI-TEST] updated" : null
+}
+
+# Receive connectors are local to the Edge server. Disabled, on an unused port
+# and for a documentation range: it never accepts mail.
+resource "msexchangeserver_receive_connector" "test" {
+  name             = "${var.edge_server}\\TF-CI-EdgeReceive"
+  usage            = "Custom"
+  bindings         = ["0.0.0.0:2526"]
+  remote_ip_ranges = local.updated ? ["192.0.2.10", "198.51.100.0/24"] : ["192.0.2.10"]
+  banner           = local.updated ? "220 TF-CI updated" : null
+  enabled          = false
 }
 
 output "accepted_domains" {

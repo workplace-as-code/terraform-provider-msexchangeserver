@@ -56,11 +56,15 @@ $Log = Join-Path $PSScriptRoot "run-edge-$stamp.log"
 $Mode = if ($Server) { "remote" } else { "local" }
 
 # Objects created by the test, as resource address = import ID.
-$Created = [ordered]@{ "msexchangeserver_transport_rule.test" = "TF-CI-EdgeRule" }
+$EdgeName = if ($Server) { (($Server -split '\.')[0]).ToUpper() } else { $env:COMPUTERNAME.ToUpper() }
+$Created = [ordered]@{
+    "msexchangeserver_transport_rule.test"     = "TF-CI-EdgeRule"
+    "msexchangeserver_receive_connector.test" = "$EdgeName\TF-CI-EdgeReceive"
+}
 # Imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_transport_config.this")
 # Resource types available on Edge, listed by terraform query.
-$ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "transport_config")
+$ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "transport_config", "receive_connector")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -232,6 +236,7 @@ try {
     $env:TF_IN_AUTOMATION   = "1"
     $env:CHECKPOINT_DISABLE = "1"
     $env:EXCHANGE_ROLE      = "Edge"
+    $env:TF_VAR_edge_server = $EdgeName
     if ($Mode -eq "remote") {
         $env:EXCHANGE_SERVER   = $Server
         $env:EXCHANGE_USERNAME = $Username

@@ -47,6 +47,7 @@ const (
 	minutesField // Exchange time span shorter than a day or not a whole number of days, in minutes
 	sizeField    // Exchange size (ByteQuantifiedSize), exposed in megabytes; 0 is Unlimited
 	limitField   // Exchange count that accepts Unlimited; 0 is Unlimited
+	setField     // multi-valued property whose order Exchange does not keep
 )
 
 // field maps one Terraform attribute to one cmdlet parameter and property.
@@ -70,6 +71,17 @@ func stringAttr(name, param, desc string) field {
 
 func listAttr(name, param, desc string) field {
 	return field{name: name, param: param, kind: listField, desc: desc}
+}
+
+func int64Attr(name, param, desc string, validators ...validator.Int64) field {
+	return field{name: name, param: param, kind: int64Field, desc: desc, validators: validators}
+}
+
+// setAttr is a multi-valued property that Exchange returns in its own order
+// (bindings, IP ranges, flags such as PermissionGroups): a set, so that the
+// order of the configuration never shows as a change.
+func setAttr(name, param, desc string) field {
+	return field{name: name, param: param, kind: setField, desc: desc}
 }
 
 // sizeAttr is an Exchange size such as MaxSendSize, written as "<n>MB" and
@@ -168,6 +180,8 @@ func (f field) attrType() attr.Type {
 		return types.Int64Type
 	case listField:
 		return types.ListType{ElemType: types.StringType}
+	case setField:
+		return types.SetType{ElemType: types.StringType}
 	default:
 		return types.StringType
 	}
@@ -191,6 +205,8 @@ func (f field) schemaAttribute() schema.Attribute {
 		return a
 	case listField:
 		return optionalList(f.desc)
+	case setField:
+		return optionalSet(f.desc)
 	default:
 		a := optionalString(f.desc)
 		if f.forceNew {
@@ -455,6 +471,10 @@ func (r *objectResource) write(ctx context.Context, action string, plan, config 
 			items := []string{}
 			diags.Append(tv.ElementsAs(ctx, &items, false)...)
 			values[f.param] = items
+		case types.Set:
+			items := []string{}
+			diags.Append(tv.ElementsAs(ctx, &items, false)...)
+			values[f.param] = items
 		}
 	}
 	if diags.HasError() {
@@ -514,6 +534,8 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Objec
 			values[f.name] = types.Int64Value(unlimitedCount(raw))
 		case listField:
 			values[f.name] = listValue(toStrings(raw))
+		case setField:
+			values[f.name] = setValue(toStrings(raw))
 		case enumField:
 			s, _ := raw.(string)
 			priorValue, _ := priorAttrs[f.name].(types.String)
