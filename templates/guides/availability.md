@@ -50,6 +50,23 @@ Objects that exist once per server, and mailbox databases: the resources adopt t
 | [`msexchangeserver_client_access_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/client_access_service) | Autodiscover URL in Active Directory |
 | [`msexchangeserver_mailbox_database`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mailbox_database) | Quotas, retention and logging; never mounted, dismounted or removed |
 
+## Edge Transport
+
+Anti-spam agents and address rewriting of Edge Transport servers (`role = "Edge"`).
+
+| Resource | Notes |
+|---|---|
+| [`msexchangeserver_content_filter_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/content_filter_config) | Singleton |
+| [`msexchangeserver_sender_filter_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/sender_filter_config) | Singleton |
+| [`msexchangeserver_recipient_filter_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/recipient_filter_config) | Singleton |
+| [`msexchangeserver_ip_allow_list_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_allow_list_config) | Singleton |
+| [`msexchangeserver_ip_block_list_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_config) | Singleton |
+| [`msexchangeserver_ip_block_list_providers_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_providers_config) | Singleton |
+| [`msexchangeserver_ip_allow_list_entry`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_allow_list_entry) |  |
+| [`msexchangeserver_ip_block_list_entry`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_entry) |  |
+| [`msexchangeserver_ip_block_list_provider`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_provider) |  |
+| [`msexchangeserver_address_rewrite_entry`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/address_rewrite_entry) |  |
+
 ## Data sources
 
 | Data source |

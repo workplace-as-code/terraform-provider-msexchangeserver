@@ -12,7 +12,7 @@ param(
     [string]$Password              = "",
 
     [Parameter(Mandatory)] [ValidatePattern('^[A-Za-z]+$')] [string]$Noun,
-    [ValidateSet("Identity", "Name")] [string]$Property = "Identity"
+    [ValidateSet("Identity", "Name", "IPRange")] [string]$Property = "Identity"
 )
 
 Set-StrictMode -Version Latest

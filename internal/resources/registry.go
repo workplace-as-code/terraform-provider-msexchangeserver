@@ -29,7 +29,7 @@ func registrations() []registration {
 		{NewRetentionPolicyResource, listQuery{noun: "RetentionPolicy"}, false},
 	}
 	for _, spec := range objectSpecs {
-		regs = append(regs, registration{newObjectResource(spec), spec.listQuery(), spec.edge})
+		regs = append(regs, registration{newObjectResource(spec), spec.listQuery(), spec.edge || spec.edgeOnly})
 	}
 	return regs
 }

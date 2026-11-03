@@ -186,6 +186,141 @@ var objectSpecs = []objectSpec{
 			stringAttr("offline_address_book", "OfflineAddressBook", "Offline address book of the mailboxes of the database, by name."),
 		},
 	},
+	{
+		typeName:    "content_filter_config",
+		noun:        "ContentFilterConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the content filter agent: what happens to a message according to its spam confidence level (SCL)",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the agent filters messages."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Filter messages from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Filter messages from authenticated partners and internal servers."),
+			boolAttr("scl_reject_enabled", "SCLRejectEnabled", "Reject the messages that reach `scl_reject_threshold`."),
+			int64Attr("scl_reject_threshold", "SCLRejectThreshold", "SCL from which messages are rejected.", int64validator.Between(0, 9)),
+			boolAttr("scl_delete_enabled", "SCLDeleteEnabled", "Delete the messages that reach `scl_delete_threshold`."),
+			int64Attr("scl_delete_threshold", "SCLDeleteThreshold", "SCL from which messages are deleted.", int64validator.Between(0, 9)),
+			boolAttr("scl_quarantine_enabled", "SCLQuarantineEnabled", "Send the messages that reach `scl_quarantine_threshold` to the quarantine mailbox."),
+			int64Attr("scl_quarantine_threshold", "SCLQuarantineThreshold", "SCL from which messages are quarantined.", int64validator.Between(0, 9)),
+			stringAttr("quarantine_mailbox", "QuarantineMailbox", "Address of the quarantine mailbox."),
+			stringAttr("rejection_response", "RejectionResponse", "Text of the rejection, up to 240 characters."),
+			setAttr("bypassed_senders", "BypassedSenders", "Senders whose messages are never filtered."),
+			setAttr("bypassed_sender_domains", "BypassedSenderDomains", "Sender domains whose messages are never filtered."),
+			setAttr("bypassed_recipients", "BypassedRecipients", "Recipients whose messages are never filtered."),
+		},
+	},
+	{
+		typeName:    "sender_filter_config",
+		noun:        "SenderFilterConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the sender filter agent, which blocks given senders and domains",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the agent filters messages."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Filter messages from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Filter messages from authenticated partners and internal servers."),
+			setAttr("blocked_senders", "BlockedSenders", "Blocked sender addresses."),
+			setAttr("blocked_domains", "BlockedDomains", "Blocked sender domains, without their subdomains."),
+			setAttr("blocked_domains_and_subdomains", "BlockedDomainsAndSubdomains", "Blocked sender domains, with their subdomains."),
+			enumAttr("action", "Action", "What happens to a message from a blocked sender.", "Reject", "StampStatus"),
+			boolAttr("blank_sender_blocking_enabled", "BlankSenderBlockingEnabled", "Block the messages without a sender."),
+		},
+	},
+	{
+		typeName:    "recipient_filter_config",
+		noun:        "RecipientFilterConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the recipient filter agent, which blocks messages to given or unknown recipients",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the agent filters messages."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Filter messages from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Filter messages from authenticated partners and internal servers."),
+			boolAttr("block_list_enabled", "BlockListEnabled", "Block the messages to `blocked_recipients`."),
+			setAttr("blocked_recipients", "BlockedRecipients", "Recipient addresses that never receive mail from outside."),
+			boolAttr("recipient_validation_enabled", "RecipientValidationEnabled", "Reject the messages to recipients that do not exist."),
+		},
+	},
+	{
+		typeName:    "ip_allow_list_config",
+		noun:        "IPAllowListConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the IP allow list of the connection filter agent",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the IP allow list is used."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Use it for connections from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Use it for authenticated partners and internal servers."),
+		},
+	},
+	{
+		typeName:    "ip_block_list_config",
+		noun:        "IPBlockListConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the IP block list of the connection filter agent",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the IP block list is used."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Use it for connections from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Use it for authenticated partners and internal servers."),
+			stringAttr("static_entry_rejection_response", "StaticEntryRejectionResponse",
+				"Rejection text for the entries added by an administrator, up to 240 characters."),
+			stringAttr("machine_entry_rejection_response", "MachineEntryRejectionResponse",
+				"Rejection text for the entries added by sender reputation, up to 240 characters."),
+		},
+	},
+	{
+		typeName:    "ip_block_list_providers_config",
+		noun:        "IPBlockListProvidersConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages how the connection filter agent uses the IP block list providers (DNS block lists)",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the providers are queried."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Query them for connections from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Query them for authenticated partners and internal servers."),
+			setAttr("bypassed_recipients", "BypassedRecipients", "Recipients whose messages are never checked against the providers."),
+		},
+	},
+	ipListEntrySpec("ip_allow_list_entry", "IPAllowListEntry", "allow", "always accepted"),
+	ipListEntrySpec("ip_block_list_entry", "IPBlockListEntry", "block", "always rejected"),
+	{
+		typeName:    "ip_block_list_provider",
+		noun:        "IPBlockListProvider",
+		script:      "ip_block_list_provider.ps1",
+		edgeOnly:    true,
+		description: "Manages an IP block list provider: a DNS block list that the connection filter agent queries",
+		notes:       "`lookup_domain` is required to create a provider. " + edgeNote,
+		fields: []field{
+			stringAttr("lookup_domain", "LookupDomain", "DNS zone of the block list, for example `zen.spamhaus.org`."),
+			boolAttr("enabled", "Enabled", "Whether the provider is queried."),
+			int64Attr("priority", "Priority", "Order in which the providers are queried, 1 first.", int64validator.AtLeast(1)),
+			stringAttr("rejection_response", "RejectionResponse", "Rejection text, up to 240 characters."),
+			boolAttr("any_match", "AnyMatch", "Block when the lookup returns any address."),
+			stringAttr("bitmask_match", "BitmaskMatch", "Block when the returned address matches this bit mask, such as `127.0.0.1`."),
+			setAttr("ip_addresses_match", "IPAddressesMatch", "Block when the lookup returns one of these addresses."),
+		},
+	},
+	{
+		typeName:    "address_rewrite_entry",
+		noun:        "AddressRewriteEntry",
+		edgeOnly:    true,
+		description: "Manages an address rewrite entry, which rewrites the addresses of messages leaving or entering the organization",
+		notes: "`internal_address` and `external_address` are required to create an entry. " +
+			"Address rewriting runs on Edge Transport servers only.",
+		fields: []field{
+			stringAttr("internal_address", "InternalAddress", "Address or domain inside the organization, such as `contoso.com` or `*.contoso.com`."),
+			stringAttr("external_address", "ExternalAddress", "Address or domain the messages show outside."),
+			boolAttr("outbound_only", "OutboundOnly", "Rewrite outgoing messages only. Required with a wildcard `internal_address`."),
+			setAttr("exception_list", "ExceptionList", "Subdomains of a wildcard `internal_address` that are not rewritten."),
+		},
+	},
 	virtualDirectorySpec("owa_virtual_directory", "OwaVirtualDirectory", "Outlook on the web (OWA)", "owa"),
 	virtualDirectorySpec("ecp_virtual_directory", "EcpVirtualDirectory", "Exchange admin center (ECP)", "ecp"),
 	virtualDirectorySpec("web_services_virtual_directory", "WebServicesVirtualDirectory", "Exchange Web Services (EWS)", "EWS"),
@@ -207,6 +342,31 @@ var objectSpecs = []objectSpec{
 					"`https://autodiscover.contoso.com/Autodiscover/Autodiscover.xml`. An empty string clears it."),
 		},
 	},
+}
+
+// edgeNote ends the description of the anti-spam settings of Edge Transport servers.
+const edgeNote = "An Edge Transport setting: on a Mailbox server, it needs the anti-spam agents and the Transport Hygiene role."
+
+// ipListEntrySpec describes an entry of the IP allow or block list. An entry
+// has no name: its IP address or range is its key, and there is no Set-
+// cmdlet, so any change creates a new entry.
+func ipListEntrySpec(typeName, noun, list, effect string) objectSpec {
+	return objectSpec{
+		typeName: typeName,
+		noun:     noun,
+		script:   "ip_list_entry.ps1",
+		edgeOnly: true,
+		listBy:   "IPRange",
+		description: fmt.Sprintf("Manages an entry of the IP %s list of the connection filter agent: connections from the "+
+			"address or range are %s", list, effect),
+		notes: "`name` is the IP address (`192.0.2.10`), CIDR range (`192.0.2.0/24`) or address range " +
+			"(`192.0.2.1-192.0.2.9`), as `Get-" + noun + "` shows it. Any change creates a new entry. " + edgeNote,
+		fields: []field{
+			{name: "comment", param: "Comment", kind: stringField, forceNew: true, desc: "Free text about the entry."},
+			{name: "expiration_time", param: "ExpirationTime", kind: stringField, forceNew: true,
+				desc: "When the entry expires, in RFC 3339 format and UTC, for example `2027-01-31T00:00:00Z`. Empty never expires."},
+		},
+	}
 }
 
 // virtualDirectorySpec describes the virtual directory of noun on the Default

@@ -32,6 +32,10 @@ var (
 	specNounRe      = regexp.MustCompile(`noun:\s*"([A-Za-z]+)"`)
 	specSingletonRe = regexp.MustCompile(`singleton:\s*true`)
 	specAdoptedRe   = regexp.MustCompile(`adopted:\s*true`)
+	// Edge-only specs: Edge has no RBAC, so their cmdlets are not in the role group.
+	specEdgeOnlyRe = regexp.MustCompile(`edgeOnly:\s*true`)
+	// ipListEntrySpec(typeName, noun, ...) builds an Edge-only spec.
+	specIPListEntryRe = regexp.MustCompile(`ipListEntrySpec\("[a-z_]+", "([A-Za-z]+)"`)
 	// virtualDirectorySpec(typeName, noun, ...) builds an adopted spec.
 	specVirtualDirRe = regexp.MustCompile(`virtualDirectorySpec\("[a-z_]+", "([A-Za-z]+)"`)
 )
@@ -45,9 +49,9 @@ func specCmdlets(t *testing.T) []string {
 		t.Fatal(err)
 	}
 	var out []string
-	for _, block := range strings.Split(string(data), "\n\t{\n")[1:] {
+	for _, block := range specBlocks(data) {
 		m := specNounRe.FindStringSubmatch(block)
-		if m == nil {
+		if m == nil || specEdgeOnlyRe.MatchString(block) {
 			continue
 		}
 		verbs := []string{"Get", "New", "Set", "Remove"}
@@ -63,6 +67,39 @@ func specCmdlets(t *testing.T) []string {
 	}
 	if len(out) == 0 {
 		t.Fatal("no noun found in specs.go")
+	}
+	return out
+}
+
+// specBlocks splits specs.go into the text of each spec literal of
+// objectSpecs, from its opening brace to its closing one.
+func specBlocks(data []byte) []string {
+	var out []string
+	for _, block := range strings.Split(string(data), "\n\t{\n")[1:] {
+		if end := strings.Index(block, "\n\t},\n"); end >= 0 {
+			block = block[:end]
+		}
+		out = append(out, block)
+	}
+	return out
+}
+
+// edgeOnlyNouns returns the nouns of the Edge-only specs, whose cmdlets the
+// bridge scripts run without a management role.
+func edgeOnlyNouns(t *testing.T) map[string]bool {
+	t.Helper()
+	data, err := os.ReadFile("../internal/resources/specs.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]bool{}
+	for _, block := range specBlocks(data) {
+		if m := specNounRe.FindStringSubmatch(block); m != nil && specEdgeOnlyRe.MatchString(block) {
+			out[m[1]] = true
+		}
+	}
+	for _, m := range specIPListEntryRe.FindAllStringSubmatch(string(data), -1) {
+		out[m[1]] = true
 	}
 	return out
 }
@@ -99,9 +136,10 @@ func bridgeCmdlets(t *testing.T) []string {
 	for _, c := range specCmdlets(t) {
 		found[c] = true
 	}
+	edgeOnly := edgeOnlyNouns(t)
 	var out []string
 	for c := range found {
-		if !builtins[c] && !helpers[c] {
+		if !builtins[c] && !helpers[c] && !edgeOnly[c[strings.Index(c, "-")+1:]] {
 			out = append(out, c)
 		}
 	}

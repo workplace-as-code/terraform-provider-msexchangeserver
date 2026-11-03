@@ -128,6 +128,8 @@ type objectSpec struct {
 	singleton   bool   // organization-wide setting: Get/Set only
 	adopted     bool   // named object that cannot be created or removed: Get/Set only
 	edge        bool   // also available on Edge Transport servers
+	edgeOnly    bool   // Edge Transport only (no RBAC there): kept out of the role group of tools/new_role_group.ps1
+	listBy      string // property holding the import ID in listings, when neither Name nor Identity
 	identity    string // singleton identity ("" calls Get/Set without -Identity)
 	description string // first sentence of the resource documentation
 	notes       string // appended to the description
@@ -152,6 +154,9 @@ func (s objectSpec) singletonID() string {
 func (s objectSpec) listQuery() listQuery {
 	if s.singleton {
 		return listQuery{id: s.singletonID()}
+	}
+	if s.listBy != "" {
+		return listQuery{noun: s.noun, property: s.listBy}
 	}
 	if s.adopted {
 		// Adopted objects exist once per server: only the identity

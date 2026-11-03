@@ -64,6 +64,84 @@ resource "msexchangeserver_receive_connector" "test" {
   enabled          = false
 }
 
+# Anti-spam settings of the Edge server, imported. The update phase changes
+# three of them; run.ps1 puts back these values, the Exchange defaults, before
+# the destroy. The others are only read.
+import {
+  to = msexchangeserver_content_filter_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_content_filter_config" "this" {
+  scl_reject_threshold = local.updated ? 6 : 7
+}
+
+import {
+  to = msexchangeserver_sender_filter_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_sender_filter_config" "this" {
+  blank_sender_blocking_enabled = local.updated
+}
+
+import {
+  to = msexchangeserver_recipient_filter_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_recipient_filter_config" "this" {
+  blocked_recipients = local.updated ? ["tf-ci-blocked@tf-ci-test.example"] : []
+}
+
+import {
+  to = msexchangeserver_ip_allow_list_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_ip_allow_list_config" "this" {}
+
+import {
+  to = msexchangeserver_ip_block_list_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_ip_block_list_config" "this" {}
+
+import {
+  to = msexchangeserver_ip_block_list_providers_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_ip_block_list_providers_config" "this" {}
+
+# Test objects with documentation addresses and domains. An IP list entry has
+# no Set- cmdlet: the new comment of the update phase replaces it.
+resource "msexchangeserver_ip_allow_list_entry" "test" {
+  name    = "192.0.2.10"
+  comment = local.updated ? "[TF-CI-TEST] updated" : "[TF-CI-TEST]"
+}
+
+resource "msexchangeserver_ip_block_list_entry" "test" {
+  name            = "198.51.100.0/24"
+  comment         = "[TF-CI-TEST]"
+  expiration_time = "2030-01-01T00:00:00Z"
+}
+
+resource "msexchangeserver_ip_block_list_provider" "test" {
+  name               = "TF-CI-DNSBL"
+  lookup_domain      = "dnsbl.tf-ci-test.example"
+  enabled            = false
+  rejection_response = local.updated ? "[TF-CI-TEST] updated" : "[TF-CI-TEST] rejected"
+}
+
+resource "msexchangeserver_address_rewrite_entry" "test" {
+  name             = "TF-CI-Rewrite"
+  internal_address = "tf-ci-internal.example"
+  external_address = "tf-ci-test.example"
+  outbound_only    = local.updated
+}
+
 output "accepted_domains" {
   description = "Accepted domains copied to the Edge server by EdgeSync."
   value       = [for d in data.msexchangeserver_accepted_domains.all.domains : d.domain_name]

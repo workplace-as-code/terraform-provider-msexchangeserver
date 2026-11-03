@@ -1,0 +1,1 @@
+terraform import msexchangeserver_recipient_filter_config.this "default"
