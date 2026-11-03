@@ -1,0 +1,1 @@
+terraform import msexchangeserver_mapi_virtual_directory.ex01 "EX01"

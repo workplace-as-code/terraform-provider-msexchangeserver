@@ -56,6 +56,7 @@ resource "msexchangeserver_remote_domain" "partner" {
 | Mail flow | `msexchangeserver_transport_rule`, `msexchangeserver_accepted_domain`, `msexchangeserver_remote_domain`, `msexchangeserver_transport_config` |
 | Clients and devices | `msexchangeserver_owa_mailbox_policy`, `msexchangeserver_mobile_device_mailbox_policy` |
 | Organization | `msexchangeserver_organization_config`, `msexchangeserver_email_address_policy`, `msexchangeserver_retention_policy`, `msexchangeserver_retention_policy_tag` |
+| Servers | `msexchangeserver_owa_virtual_directory`, `msexchangeserver_ecp_virtual_directory`, `msexchangeserver_web_services_virtual_directory`, `msexchangeserver_activesync_virtual_directory`, `msexchangeserver_oab_virtual_directory`, `msexchangeserver_mapi_virtual_directory`, `msexchangeserver_client_access_service` |
 
 Data sources: `msexchangeserver_accepted_domain`, `msexchangeserver_accepted_domains`, `msexchangeserver_mailbox`, `msexchangeserver_organization_config`, `msexchangeserver_remote_mailbox`, and one for every named resource (`msexchangeserver_transport_rule`, `msexchangeserver_remote_domain`, ...): it reads an existing object by name with the attributes of the resource.
 

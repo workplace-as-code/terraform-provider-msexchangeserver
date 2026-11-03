@@ -33,6 +33,20 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy) | Messaging records management |
 | [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy_tag) | |
 
+## Servers
+
+Objects that exist once per server: the resources adopt them by server name and never create or remove them.
+
+| Resource | Notes |
+|---|---|
+| [`msexchangeserver_owa_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/owa_virtual_directory) | URLs only |
+| [`msexchangeserver_ecp_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ecp_virtual_directory) | URLs only |
+| [`msexchangeserver_web_services_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/web_services_virtual_directory) | URLs only |
+| [`msexchangeserver_activesync_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/activesync_virtual_directory) | URLs only |
+| [`msexchangeserver_oab_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/oab_virtual_directory) | URLs only |
+| [`msexchangeserver_mapi_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mapi_virtual_directory) | URLs only |
+| [`msexchangeserver_client_access_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/client_access_service) | Autodiscover URL in Active Directory |
+
 ## Data sources
 
 | Data source |

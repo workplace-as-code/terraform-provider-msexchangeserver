@@ -114,6 +114,7 @@ type objectSpec struct {
 	noun        string // cmdlet noun, e.g. "RetentionPolicyTag"
 	script      string // bridge script; "" means object.ps1
 	singleton   bool   // organization-wide setting: Get/Set only
+	adopted     bool   // named object that cannot be created or removed: Get/Set only
 	edge        bool   // also available on Edge Transport servers
 	identity    string // singleton identity ("" calls Get/Set without -Identity)
 	description string // first sentence of the resource documentation
@@ -139,6 +140,11 @@ func (s objectSpec) singletonID() string {
 func (s objectSpec) listQuery() listQuery {
 	if s.singleton {
 		return listQuery{id: s.singletonID()}
+	}
+	if s.adopted {
+		// Adopted objects exist once per server: only the identity
+		// ("EX01\owa (Default Web Site)") tells them apart.
+		return listQuery{noun: s.noun}
 	}
 	return listQuery{noun: s.noun, property: "Name"}
 }
@@ -241,6 +247,11 @@ func (r *objectResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		}
 		desc = fmt.Sprintf("%s (`New-%s`). Attributes left out of the configuration take the Exchange default when the object "+
 			"is created and are not managed afterwards.", r.spec.description, r.spec.noun)
+		if r.spec.adopted {
+			desc = fmt.Sprintf("%s (`Set-%s`). The object cannot be created: the resource adopts the existing one. "+
+				"Only the attributes set in the configuration are managed; the others keep their current value. "+
+				"Destroying this resource removes it from Terraform state without changing Exchange.", r.spec.description, r.spec.noun)
+		}
 	}
 	if r.spec.notes != "" {
 		desc += " " + r.spec.notes
@@ -270,7 +281,7 @@ func (r *objectResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 	action := "Create"
-	if r.spec.singleton {
+	if r.spec.singleton || r.spec.adopted {
 		action = "Update"
 	}
 	state, diags := r.write(ctx, action, plan, config, r.identity(plan))
@@ -320,8 +331,8 @@ func (r *objectResource) Update(ctx context.Context, req resource.UpdateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-// Delete removes the object. Organization-wide settings cannot be deleted: they are
-// only removed from Terraform state.
+// Delete removes the object. Organization-wide settings and adopted objects
+// cannot be deleted: they are only removed from Terraform state.
 func (r *objectResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var prior types.Object
 	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
@@ -330,6 +341,10 @@ func (r *objectResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 	if r.spec.singleton {
 		warnStateOnlyDestroy(&resp.Diagnostics, r.spec.typeName, "Organization-wide settings cannot be deleted.")
+		return
+	}
+	if r.spec.adopted {
+		warnStateOnlyDestroy(&resp.Diagnostics, r.spec.typeName, "This object cannot be deleted.")
 		return
 	}
 	if _, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params("Delete", r.identity(prior), nil)); err != nil {

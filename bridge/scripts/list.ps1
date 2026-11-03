@@ -25,6 +25,9 @@ try {
     $cmdlet = Get-Command "Get-$Noun"
     # Some Get cmdlets return the first 1000 objects only by default.
     $size = if ($cmdlet.Parameters.ContainsKey("ResultSize")) { @{ ResultSize = "Unlimited" } } else { @{} }
+    # Virtual directories: the identity is in Active Directory, reading IIS on
+    # every server is slow and fails when one does not answer.
+    if ($cmdlet.Parameters.ContainsKey("ADPropertiesOnly")) { $size["ADPropertiesOnly"] = $true }
     # Some Get cmdlets report "couldn't be found" when there is no object.
     $objects = try { @(Invoke-BridgeRetry { & "Get-$Noun" @size }) } catch {
         if (-not (Test-BridgeNotFound $_.Exception.Message)) { throw }

@@ -1,0 +1,41 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Servers"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs `Get-ActiveSyncVirtualDirectory` and `Set-ActiveSyncVirtualDirectory`, from the **Exchange Virtual Directories** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets of the virtual directories: the built-in role can also create and remove them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Get-ActiveSyncVirtualDirectory`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-activesyncvirtualdirectory?view=exchange-ps)
+- [`Set-ActiveSyncVirtualDirectory`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-activesyncvirtualdirectory?view=exchange-ps)
+
+## Import
+
+Import using the server name:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

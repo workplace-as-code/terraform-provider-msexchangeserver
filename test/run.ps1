@@ -101,10 +101,17 @@ $Created = [ordered]@{
 }
 # Organization-wide objects imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this")
+# Per-server objects adopted by main.tf (they exist on every server), imported
+# by server name and never destroyed.
+$Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
+    "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service") |
+    ForEach-Object { "msexchangeserver_$_.test" }
 # Resource types listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbox_policy",
     "mobile_device_mailbox_policy", "email_address_policy", "retention_policy",
-    "retention_policy_tag", "organization_config", "transport_config")
+    "retention_policy_tag", "organization_config", "transport_config", "owa_virtual_directory", "ecp_virtual_directory",
+    "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
+    "client_access_service")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -286,6 +293,7 @@ try {
     }
     $env:TF_VAR_default_domain = "$($default.Name)"
     $env:TF_VAR_test_remote_mailbox = $RemoteMailbox
+    $env:TF_VAR_exchange_server = $Server
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"
@@ -338,7 +346,11 @@ try {
         Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address"
         Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $Created[$address]) "Import of $address"
     }
-    Write-Pass "$($Created.Count) resources imported"
+    foreach ($address in $Adopted) {
+        Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address"
+        Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $Server) "Import of $address"
+    }
+    Write-Pass "$($Created.Count + $Adopted.Count) resources imported"
     # apply_to_recipients is a provider setting that Exchange does not store: an
     # imported policy has none, so the first apply only records it. It applies
     # nothing, since no setting of the policy changes.
@@ -383,7 +395,10 @@ try {
 
     # -----------------------------------------------------------------------
     Write-Step "terraform destroy"
-    foreach ($address in $Keep) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
+    # Adopted objects stay: put back the URL the update phase changed first.
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color "-target=msexchangeserver_oab_virtual_directory.test") "Restoring the OAB external URL"
+    Assert-NoChanges "OAB external URL restored" @("-target=msexchangeserver_oab_virtual_directory.test")
+    foreach ($address in @($Keep) + $Adopted) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"
     Write-Pass "Destroy"

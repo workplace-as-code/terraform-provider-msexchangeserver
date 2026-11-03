@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 )
 
@@ -91,4 +93,45 @@ var objectSpecs = []objectSpec{
 				int64validator.Between(1, 35791394)),
 		},
 	},
+	virtualDirectorySpec("owa_virtual_directory", "OwaVirtualDirectory", "Outlook on the web (OWA)", "owa"),
+	virtualDirectorySpec("ecp_virtual_directory", "EcpVirtualDirectory", "Exchange admin center (ECP)", "ecp"),
+	virtualDirectorySpec("web_services_virtual_directory", "WebServicesVirtualDirectory", "Exchange Web Services (EWS)", "EWS"),
+	virtualDirectorySpec("activesync_virtual_directory", "ActiveSyncVirtualDirectory", "Exchange ActiveSync",
+		"Microsoft-Server-ActiveSync"),
+	virtualDirectorySpec("oab_virtual_directory", "OabVirtualDirectory", "offline address book (OAB)", "OAB"),
+	virtualDirectorySpec("mapi_virtual_directory", "MapiVirtualDirectory", "MAPI over HTTP", "mapi"),
+	{
+		typeName: "client_access_service",
+		noun:     "ClientAccessService",
+		script:   "virtual_directory.ps1",
+		adopted:  true,
+		description: "Manages the Autodiscover settings of the Client Access services of an Exchange server: the URL that " +
+			"domain-joined Outlook clients find in Active Directory",
+		notes: "`name` is the server name or FQDN.",
+		fields: []field{
+			stringAttr("autodiscover_service_internal_uri", "AutoDiscoverServiceInternalUri",
+				"Autodiscover URL published in Active Directory (service connection point), for example "+
+					"`https://autodiscover.contoso.com/Autodiscover/Autodiscover.xml`. An empty string clears it."),
+		},
+	},
+}
+
+// virtualDirectorySpec describes the virtual directory of noun on the Default
+// Web Site of a server, named "<dir> (Default Web Site)". Only its URLs are
+// managed: its authentication settings are read from IIS, which is slow and
+// fails when the server does not answer.
+func virtualDirectorySpec(typeName, noun, label, dir string) objectSpec {
+	return objectSpec{
+		typeName:    typeName,
+		noun:        noun,
+		script:      "virtual_directory.ps1",
+		adopted:     true,
+		description: fmt.Sprintf("Manages the URLs of the %s virtual directory of an Exchange server", label),
+		notes: fmt.Sprintf("`name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity "+
+			"as `Get-%s` shows it, such as `EX01\\%s (Default Web Site)`. Authentication settings are not managed.", noun, dir),
+		fields: []field{
+			stringAttr("internal_url", "InternalUrl", "URL used inside the network. An empty string clears it."),
+			stringAttr("external_url", "ExternalUrl", "URL used from the internet. An empty string clears it."),
+		},
+	}
 }

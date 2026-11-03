@@ -31,6 +31,9 @@ var (
 var (
 	specNounRe      = regexp.MustCompile(`noun:\s*"([A-Za-z]+)"`)
 	specSingletonRe = regexp.MustCompile(`singleton:\s*true`)
+	specAdoptedRe   = regexp.MustCompile(`adopted:\s*true`)
+	// virtualDirectorySpec(typeName, noun, ...) builds an adopted spec.
+	specVirtualDirRe = regexp.MustCompile(`virtualDirectorySpec\("[a-z_]+", "([A-Za-z]+)"`)
 )
 
 // specCmdlets returns the cmdlets the generic resources (internal/resources/specs.go)
@@ -48,12 +51,15 @@ func specCmdlets(t *testing.T) []string {
 			continue
 		}
 		verbs := []string{"Get", "New", "Set", "Remove"}
-		if specSingletonRe.MatchString(block) {
+		if specSingletonRe.MatchString(block) || specAdoptedRe.MatchString(block) {
 			verbs = []string{"Get", "Set"}
 		}
 		for _, v := range verbs {
 			out = append(out, v+"-"+m[1])
 		}
+	}
+	for _, m := range specVirtualDirRe.FindAllStringSubmatch(string(data), -1) {
+		out = append(out, "Get-"+m[1], "Set-"+m[1])
 	}
 	if len(out) == 0 {
 		t.Fatal("no noun found in specs.go")

@@ -15,6 +15,11 @@ variable "default_domain" {
   type        = string
 }
 
+variable "exchange_server" {
+  description = "The Exchange server of the test, whose virtual directories are adopted. Set by run.ps1."
+  type        = string
+}
+
 variable "test_remote_mailbox" {
   description = "Identity of an existing remote mailbox, read by the data source. Set by run.ps1; empty skips it."
   type        = string
@@ -177,4 +182,39 @@ output "default_domain" {
 output "accepted_domains" {
   description = "Accepted domains of the organization, without the test domain."
   value       = [for d in data.msexchangeserver_accepted_domains.all.domains : d.domain_name if !startswith(d.domain_name, "tf-ci-")]
+}
+
+# ---------------------------------------------------------------------------
+# Per-server objects, adopted and never created or removed. Only the external
+# URL of the OAB virtual directory changes (update phase); run.ps1 clears it
+# again before the destroy.
+# ---------------------------------------------------------------------------
+
+resource "msexchangeserver_owa_virtual_directory" "test" {
+  name = var.exchange_server
+}
+
+resource "msexchangeserver_ecp_virtual_directory" "test" {
+  name = var.exchange_server
+}
+
+resource "msexchangeserver_web_services_virtual_directory" "test" {
+  name = var.exchange_server
+}
+
+resource "msexchangeserver_activesync_virtual_directory" "test" {
+  name = var.exchange_server
+}
+
+resource "msexchangeserver_oab_virtual_directory" "test" {
+  name         = var.exchange_server
+  external_url = local.updated ? "https://tf-ci.invalid/OAB" : ""
+}
+
+resource "msexchangeserver_mapi_virtual_directory" "test" {
+  name = var.exchange_server
+}
+
+resource "msexchangeserver_client_access_service" "test" {
+  name = var.exchange_server
 }
