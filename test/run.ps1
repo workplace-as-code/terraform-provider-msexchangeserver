@@ -108,6 +108,10 @@ $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transpo
 $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
     "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service",
     "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
+# Adopted objects whose settings the update phase changes: applied again with
+# phase=create to put back their original values.
+$RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test")
+$restorePending = $false
 # Resource types listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbox_policy",
     "mobile_device_mailbox_policy", "email_address_policy", "retention_policy",
@@ -347,6 +351,9 @@ try {
     Assert-NoChanges "Drift check after apply"
 
     Write-Step "Update of every test object (phase=update)"
+    # From here on, the adopted objects hold test values: the finally block
+    # puts the original ones back if the run stops before the destroy step.
+    $restorePending = $true
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update) "terraform apply (update)"
     Write-Pass "Update"
     Assert-NoChanges "Drift check after update" @("-var", "phase=update")
@@ -408,9 +415,9 @@ try {
     # -----------------------------------------------------------------------
     Write-Step "terraform destroy"
     # Adopted objects stay: put back what the update phase changed first.
-    $restore = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test")
-    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @restore) "Restoring the adopted objects"
-    Assert-NoChanges "OAB external URL and database retention restored" $restore
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the adopted objects"
+    Assert-NoChanges "OAB external URL and database retention restored" $RestoreTargets
+    $restorePending = $false
     foreach ($address in @($Keep) + $Adopted) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"
@@ -432,6 +439,14 @@ try {
     Write-Host "  Imported read-only: organization_config, transport_config"
     Write-Host "  Data sources: accepted_domain, accepted_domains, organization_config"
 } finally {
+    if ($restorePending) {
+        Write-Host ""
+        Write-Host "Putting back the original OAB external URL and database retention..." -ForegroundColor Yellow
+        $r = Invoke-Tf apply -auto-approve -no-color @RestoreTargets
+        if ($r.Code -ne 0) {
+            Write-Host "  WARN Could not put them back: apply test\main.tf with phase=create and the targets of `$RestoreTargets" -ForegroundColor Red
+        }
+    }
     if ($pushed) { Pop-Location }
     # The other test scripts of this window (edge, transport) do not set the method
     Remove-Item Env:EXCHANGE_PASSWORD, Env:EXCHANGE_AUTH_METHOD -ErrorAction SilentlyContinue
