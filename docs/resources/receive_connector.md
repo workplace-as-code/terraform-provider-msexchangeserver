@@ -2,12 +2,12 @@
 page_title: "msexchangeserver_receive_connector (Resource) - msexchangeserver"
 subcategory: "Mail flow"
 description: |-
-  Manages a receive connector of an Exchange server, which accepts SMTP connections on given addresses and ports from given IP ranges (New-ReceiveConnector). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. name is the identity of the connector, <server>\<name>, with the server's short name, as Get-ReceiveConnector shows it: changing it creates a new connector on that server. bindings is required to create a connector. For an application that relays mail, prefer permission_groups = ["ExchangeServers"] with auth_mechanism = ["ExternalAuthoritative"] on narrow remote_ip_ranges: it needs no Active Directory permission.
+  Manages a receive connector of an Exchange server, which accepts SMTP connections on given addresses and ports from given IP ranges (New-ReceiveConnector). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. name is the identity of the connector, <server>\<name>, with the server's short name, as Get-ReceiveConnector shows it: changing it creates a new connector on that server. bindings is required to create a connector, which is created with the Custom usage: set its permission_groups and auth_mechanism. For an application that relays mail, prefer permission_groups = ["ExchangeServers"] with auth_mechanism = ["ExternalAuthoritative"] on narrow remote_ip_ranges: it needs no Active Directory permission.
 ---
 
 # msexchangeserver_receive_connector (Resource)
 
-Manages a receive connector of an Exchange server, which accepts SMTP connections on given addresses and ports from given IP ranges (`New-ReceiveConnector`). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. `name` is the identity of the connector, `<server>\<name>`, with the server's short name, as `Get-ReceiveConnector` shows it: changing it creates a new connector on that server. `bindings` is required to create a connector. For an application that relays mail, prefer `permission_groups = ["ExchangeServers"]` with `auth_mechanism = ["ExternalAuthoritative"]` on narrow `remote_ip_ranges`: it needs no Active Directory permission.
+Manages a receive connector of an Exchange server, which accepts SMTP connections on given addresses and ports from given IP ranges (`New-ReceiveConnector`). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. `name` is the identity of the connector, `<server>\<name>`, with the server's short name, as `Get-ReceiveConnector` shows it: changing it creates a new connector on that server. `bindings` is required to create a connector, which is created with the `Custom` usage: set its `permission_groups` and `auth_mechanism`. For an application that relays mail, prefer `permission_groups = ["ExchangeServers"]` with `auth_mechanism = ["ExternalAuthoritative"]` on narrow `remote_ip_ranges`: it needs no Active Directory permission.
 
 ## Example Usage
 
@@ -16,7 +16,6 @@ Manages a receive connector of an Exchange server, which accepts SMTP connection
 # the connector treats them as Exchange servers (externally secured).
 resource "msexchangeserver_receive_connector" "app_relay" {
   name              = "EX01\\Application relay"
-  usage             = "Custom"
   transport_role    = "FrontendTransport"
   bindings          = ["0.0.0.0:25"]
   remote_ip_ranges  = ["10.10.5.21", "10.10.5.22"]
@@ -47,7 +46,6 @@ resource "msexchangeserver_receive_connector" "app_relay" {
 - `require_tls` (Boolean) Require TLS for every connection.
 - `tls_certificate_name` (String) Certificate the connector presents, as `<I>issuer<S>subject`.
 - `transport_role` (String) Transport service of the connector on a Mailbox server. Valid values: `FrontendTransport`, `HubTransport` (case-insensitive).
-- `usage` (String) Purpose of the connector, which sets its default permissions: `Custom` (default), `Internet`, `Internal`, `Client` or `Partner`. Only used to create the connector: changing it creates a new one.
 
 ### Read-Only
 

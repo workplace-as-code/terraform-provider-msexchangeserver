@@ -58,7 +58,6 @@ resource "msexchangeserver_transport_rule" "test" {
 # and for a documentation range: it never accepts mail.
 resource "msexchangeserver_receive_connector" "test" {
   name             = "${var.edge_server}\\TF-CI-EdgeReceive"
-  usage            = "Custom"
   bindings         = ["0.0.0.0:2526"]
   remote_ip_ranges = local.updated ? ["192.0.2.10", "198.51.100.0/24"] : ["192.0.2.10"]
   banner           = local.updated ? "220 TF-CI updated" : null

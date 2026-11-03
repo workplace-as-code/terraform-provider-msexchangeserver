@@ -247,7 +247,6 @@ resource "msexchangeserver_mailbox_database" "test" {
 
 resource "msexchangeserver_send_connector" "test" {
   name                     = "TF-CI-Send"
-  usage                    = "Custom"
   address_spaces           = local.updated ? ["tf-ci-test.example", "tf-ci-partner.example;10"] : ["tf-ci-test.example"]
   smart_hosts              = ["smtp.tf-ci-test.example"]
   dns_routing_enabled      = false
@@ -260,7 +259,6 @@ resource "msexchangeserver_send_connector" "test" {
 
 resource "msexchangeserver_receive_connector" "test" {
   name              = "${local.server_name}\\TF-CI-Receive"
-  usage             = "Custom"
   transport_role    = "FrontendTransport"
   bindings          = ["0.0.0.0:2526"]
   remote_ip_ranges  = local.updated ? ["192.0.2.10", "198.51.100.0/24"] : ["192.0.2.10"]

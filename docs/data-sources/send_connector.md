@@ -48,7 +48,6 @@ output "address_spaces" {
 - `tls_auth_level` (String) Check made on the certificate of the destination when `require_tls` is `true`. Valid values: `EncryptionOnly`, `CertificateValidation`, `DomainValidation` (case-insensitive).
 - `tls_certificate_name` (String) Certificate the servers present, as `<I>issuer<S>subject`.
 - `tls_domain` (String) Domain the certificate of the destination must match with `DomainValidation`.
-- `usage` (String) Purpose of the connector, which sets its default permissions: `Custom`, `Internal`, `Internet` or `Partner`. Only used to create the connector: changing it creates a new one.
 
 ## Permissions
 

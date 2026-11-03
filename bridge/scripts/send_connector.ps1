@@ -59,11 +59,13 @@ try {
         }
         "Create" {
             if (-not $splat.ContainsKey("AddressSpaces")) { throw "address_spaces is required to create a send connector" }
-            Invoke-BridgeRetry { New-SendConnector -Name $Identity @splat | Out-Null }
+            # -Force: New-SendConnector asks to confirm some settings, which
+            # fails in a non-interactive session.
+            Invoke-BridgeRetry { New-SendConnector -Name $Identity -Usage Custom -Force @splat | Out-Null }
             Read-BridgeConnector
         }
         "Update" {
-            if ($splat.Count -gt 0) { Invoke-BridgeRetry { Set-SendConnector -Identity $Identity @splat | Out-Null } }
+            if ($splat.Count -gt 0) { Invoke-BridgeRetry { Set-SendConnector -Identity $Identity -Force @splat | Out-Null } }
             Read-BridgeConnector
         }
         "Delete" {

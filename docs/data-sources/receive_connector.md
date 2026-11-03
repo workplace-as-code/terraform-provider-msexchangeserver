@@ -45,7 +45,6 @@ output "remote_ip_ranges" {
 - `require_tls` (Boolean) Require TLS for every connection.
 - `tls_certificate_name` (String) Certificate the connector presents, as `<I>issuer<S>subject`.
 - `transport_role` (String) Transport service of the connector on a Mailbox server. Valid values: `FrontendTransport`, `HubTransport` (case-insensitive).
-- `usage` (String) Purpose of the connector, which sets its default permissions: `Custom` (default), `Internet`, `Internal`, `Client` or `Partner`. Only used to create the connector: changing it creates a new one.
 
 ## Permissions
 

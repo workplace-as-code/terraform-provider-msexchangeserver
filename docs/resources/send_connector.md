@@ -2,12 +2,12 @@
 page_title: "msexchangeserver_send_connector (Resource) - msexchangeserver"
 subcategory: "Mail flow"
 description: |-
-  Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts (New-SendConnector). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. address_spaces is required to create a connector. The connectors that EdgeSync creates (EdgeSync - ...) can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and password is not supported: the password would be stored in the Terraform state.
+  Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts (New-SendConnector). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. address_spaces is required to create a connector, which is created with the Custom usage. The connectors that EdgeSync creates (EdgeSync - ...) can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and password is not supported: the password would be stored in the Terraform state.
 ---
 
 # msexchangeserver_send_connector (Resource)
 
-Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts (`New-SendConnector`). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. `address_spaces` is required to create a connector. The connectors that EdgeSync creates (`EdgeSync - ...`) can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and password is not supported: the password would be stored in the Terraform state.
+Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts (`New-SendConnector`). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. `address_spaces` is required to create a connector, which is created with the `Custom` usage. The connectors that EdgeSync creates (`EdgeSync - ...`) can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and password is not supported: the password would be stored in the Terraform state.
 
 ## Example Usage
 
@@ -15,7 +15,6 @@ Manages a send connector, which routes outgoing mail for some domains through DN
 # Outgoing mail to the internet through the mail gateways, over TLS.
 resource "msexchangeserver_send_connector" "internet" {
   name                     = "To internet via gateways"
-  usage                    = "Internet"
   address_spaces           = ["*"]
   smart_hosts              = ["gw1.contoso.com", "gw2.contoso.com"]
   dns_routing_enabled      = false
@@ -50,7 +49,6 @@ resource "msexchangeserver_send_connector" "internet" {
 - `tls_auth_level` (String) Check made on the certificate of the destination when `require_tls` is `true`. Valid values: `EncryptionOnly`, `CertificateValidation`, `DomainValidation` (case-insensitive).
 - `tls_certificate_name` (String) Certificate the servers present, as `<I>issuer<S>subject`.
 - `tls_domain` (String) Domain the certificate of the destination must match with `DomainValidation`.
-- `usage` (String) Purpose of the connector, which sets its default permissions: `Custom`, `Internal`, `Internet` or `Partner`. Only used to create the connector: changing it creates a new one.
 
 ### Read-Only
 

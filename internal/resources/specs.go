@@ -98,15 +98,10 @@ var objectSpecs = []objectSpec{
 		noun:        "SendConnector",
 		script:      "send_connector.ps1",
 		description: "Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts",
-		notes: "`address_spaces` is required to create a connector. The connectors that EdgeSync creates (`EdgeSync - ...`) " +
+		notes: "`address_spaces` is required to create a connector, which is created with the `Custom` usage. The connectors that EdgeSync creates (`EdgeSync - ...`) " +
 			"can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and " +
 			"password is not supported: the password would be stored in the Terraform state.",
 		fields: []field{
-			{
-				name: "usage", param: "Usage", kind: enumField, forceNew: true, values: []string{"Custom", "Internal", "Internet", "Partner"},
-				desc: "Purpose of the connector, which sets its default permissions: `Custom`, `Internal`, `Internet` or `Partner`. " +
-					"Only used to create the connector: changing it creates a new one.",
-			},
 			setAttr("address_spaces", "AddressSpaces", "Domains the connector routes mail to, as `contoso.com` or `contoso.com;10` "+
 				"with a cost (1 by default). `*` routes all external mail; `*.contoso.com` includes the subdomains."),
 			setAttr("smart_hosts", "SmartHosts", "Host names or IP addresses mail is sent to. Leave empty and set "+
@@ -138,15 +133,9 @@ var objectSpecs = []objectSpec{
 			"and ports from given IP ranges",
 		notes: "`name` is the identity of the connector, `<server>\\<name>`, with the server's short name, as " +
 			"`Get-ReceiveConnector` shows it: changing it creates a new connector on that server. `bindings` is required to " +
-			"create a connector. For an application that relays mail, prefer `permission_groups = [\"ExchangeServers\"]` with " +
+			"create a connector, which is created with the `Custom` usage: set its `permission_groups` and `auth_mechanism`. For an application that relays mail, prefer `permission_groups = [\"ExchangeServers\"]` with " +
 			"`auth_mechanism = [\"ExternalAuthoritative\"]` on narrow `remote_ip_ranges`: it needs no Active Directory permission.",
 		fields: []field{
-			{
-				name: "usage", param: "Usage", kind: enumField, forceNew: true,
-				values: []string{"Custom", "Internet", "Internal", "Client", "Partner"},
-				desc: "Purpose of the connector, which sets its default permissions: `Custom` (default), `Internet`, `Internal`, " +
-					"`Client` or `Partner`. Only used to create the connector: changing it creates a new one.",
-			},
 			enumAttr("transport_role", "TransportRole", "Transport service of the connector on a Mailbox server.",
 				"FrontendTransport", "HubTransport"),
 			setAttr("bindings", "Bindings", "Local addresses and ports, as `0.0.0.0:25` or `[::]:25`."),
