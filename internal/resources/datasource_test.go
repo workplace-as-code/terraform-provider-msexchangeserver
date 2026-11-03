@@ -13,11 +13,13 @@ import (
 // resource's, since Read copies the resource state as is.
 func TestDataSourcesMirrorTheirResource(t *testing.T) {
 	ctx := context.Background()
-	if len(DataSources()) != len(allDataSourceResources()) {
-		t.Fatalf("%d data sources for %d resources", len(DataSources()), len(allDataSourceResources()))
-	}
+	adapted := 0
 	for _, newDataSource := range DataSources() {
-		d := newDataSource().(*resourceDataSource)
+		d, ok := newDataSource().(*resourceDataSource)
+		if !ok {
+			continue // written by hand, such as the certificate data source
+		}
+		adapted++
 		var meta datasource.MetadataResponse
 		d.Metadata(ctx, datasource.MetadataRequest{ProviderTypeName: "msexchangeserver"}, &meta)
 		t.Run(meta.TypeName, func(t *testing.T) {
@@ -39,5 +41,8 @@ func TestDataSourcesMirrorTheirResource(t *testing.T) {
 				t.Errorf("type differs from the resource:\n%s\n%s", got, want)
 			}
 		})
+	}
+	if adapted != len(allDataSourceResources()) {
+		t.Fatalf("%d data sources for %d resources", adapted, len(allDataSourceResources()))
 	}
 }

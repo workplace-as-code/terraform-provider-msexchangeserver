@@ -36,6 +36,36 @@ variable "test_remote_mailbox" {
   default     = ""
 }
 
+variable "test_certificate" {
+  description = "Thumbprint of the test certificate in test_pfx_base64. Set by run.ps1."
+  type        = string
+}
+
+variable "test_pfx_base64" {
+  description = "The test certificate as a PFX file in base64. Set by run.ps1, never stored."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "test_pfx_password" {
+  description = "The password of test_pfx_base64. Set by run.ps1, never stored."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "original_certificate" {
+  description = "Thumbprint of the certificate enabled for POP and IMAP before the test. Set by run.ps1."
+  type        = string
+}
+
+variable "restore" {
+  description = "Set to true by run.ps1 to enable POP and IMAP on original_certificate again."
+  type        = bool
+  default     = false
+}
+
 variable "phase" {
   description = "Set to \"update\" by run.ps1 to change one or more attributes of every resource in place."
   type        = string
@@ -266,4 +296,34 @@ resource "msexchangeserver_receive_connector" "test" {
   auth_mechanism    = ["Tls", "ExternalAuthoritative"]
   banner            = local.updated ? "220 TF-CI updated" : null
   enabled           = false
+}
+
+# ---------------------------------------------------------------------------
+# Certificates: a self-signed certificate made by run.ps1, imported from its
+# PFX and enabled for POP (and IMAP in the update phase), the services least
+# used on a test server. Before the destroy, run.ps1 applies with restore=true
+# to enable POP and IMAP on the original certificate again: Exchange cannot
+# take a service away from a certificate, and the provider does not remove a
+# certificate still enabled for IIS, POP or IMAP.
+# ---------------------------------------------------------------------------
+
+resource "msexchangeserver_exchange_certificate" "test" {
+  server          = var.exchange_server
+  thumbprint      = var.test_certificate
+  pfx_base64_wo   = var.test_pfx_base64
+  pfx_password_wo = var.test_pfx_password
+  friendly_name   = "TF-CI-Certificate"
+}
+
+resource "msexchangeserver_exchange_certificate_services" "test" {
+  server     = msexchangeserver_exchange_certificate.test.server
+  thumbprint = msexchangeserver_exchange_certificate.test.thumbprint
+  services   = local.updated ? ["POP", "IMAP"] : ["POP"]
+}
+
+resource "msexchangeserver_exchange_certificate_services" "original" {
+  count      = var.restore ? 1 : 0
+  server     = var.exchange_server
+  thumbprint = var.original_certificate
+  services   = ["POP", "IMAP"]
 }

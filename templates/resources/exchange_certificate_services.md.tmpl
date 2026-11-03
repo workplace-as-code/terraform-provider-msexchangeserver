@@ -1,0 +1,46 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Servers"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+## Limitations
+
+- Exchange adds `SMTP` to a certificate on its own, for example when it is enabled for IMAP or POP. The resource only reads the services listed in `services`, so this shows no difference; an imported resource lists them all.
+- Mailbox servers only.
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs `Get-ExchangeCertificate` and `Enable-ExchangeCertificate`, from the **Exchange Server Certificates** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role without `Export-ExchangeCertificate`, which exports private keys. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Enable-ExchangeCertificate`](https://learn.microsoft.com/powershell/module/exchangepowershell/enable-exchangecertificate?view=exchange-ps)
+- [`Get-ExchangeCertificate`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-exchangecertificate?view=exchange-ps)
+
+## Import
+
+Import using the certificate identity, `<server>\\<thumbprint>`. A certificate without services cannot be imported.
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

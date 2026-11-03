@@ -62,7 +62,7 @@ func DataSources() []func() datasource.DataSource {
 			return &resourceDataSource{resource: source.newResource(), key: source.key}
 		})
 	}
-	return out
+	return append(out, NewExchangeCertificateDataSource)
 }
 
 // resourceDataSource is a data source that reads through a resource.

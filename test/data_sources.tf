@@ -84,3 +84,16 @@ data "msexchangeserver_retention_policy" "test" {
     }
   }
 }
+
+data "msexchangeserver_exchange_certificate" "test" {
+  server     = msexchangeserver_exchange_certificate.test.server
+  thumbprint = msexchangeserver_exchange_certificate.test.thumbprint
+  depends_on = [msexchangeserver_exchange_certificate_services.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.subject == msexchangeserver_exchange_certificate.test.subject && contains(self.services, "POP")
+      error_message = "The data source read another certificate than the test one, or without its POP service."
+    }
+  }
+}

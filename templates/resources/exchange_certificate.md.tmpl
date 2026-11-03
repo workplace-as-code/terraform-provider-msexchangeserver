@@ -1,0 +1,58 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Servers"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+## Renewing a certificate
+
+Declare the new certificate as a second resource and move the services to it, then remove the old certificate from the configuration once the new one serves them:
+
+1. Add the new `msexchangeserver_exchange_certificate` and point the `msexchangeserver_exchange_certificate_services` resource at its thumbprint. Apply: Exchange enables the services on the new certificate.
+2. Remove the old certificate from the configuration. Apply: the provider removes it from the server.
+
+Changing `thumbprint` on a single certificate resource does not work: Terraform would remove the old certificate before it imports the new one, and the provider refuses to remove a certificate still enabled for IIS, POP or IMAP.
+
+## Limitations
+
+- Terraform 1.11 or later (write-only attributes). The PFX and its password are only read when the certificate is created.
+- The persistent PowerShell bridge (the default): with `EXCHANGE_BRIDGE_MODE=oneshot`, the provider refuses to import a PFX, whose password would be on the PowerShell command line.
+- Mailbox servers only. Each server has its own certificates: declare one resource per server.
+- The import ID and the configuration must name the server the same way: a different `server` replaces the certificate. `terraform query` uses the FQDN.
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs `Get-`, `Import-` and `Remove-ExchangeCertificate`, from the **Exchange Server Certificates** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role without `Export-ExchangeCertificate`, which exports private keys. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Import-ExchangeCertificate`](https://learn.microsoft.com/powershell/module/exchangepowershell/import-exchangecertificate?view=exchange-ps)
+- [`Get-ExchangeCertificate`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-exchangecertificate?view=exchange-ps)
+- [`Remove-ExchangeCertificate`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-exchangecertificate?view=exchange-ps)
+
+## Import
+
+Import using the certificate identity, `<server>\\<thumbprint>`. The certificate stays on the server: `pfx_base64_wo` is only needed to create it.
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

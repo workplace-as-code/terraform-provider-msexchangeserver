@@ -27,6 +27,9 @@ func registrations() []registration {
 		{NewEmailAddressPolicyResource, listQuery{noun: "EmailAddressPolicy"}, false},
 		{NewMobileDeviceMailboxPolicyResource, listQuery{noun: "MobileDeviceMailboxPolicy"}, false},
 		{NewRetentionPolicyResource, listQuery{noun: "RetentionPolicy"}, false},
+		// The certificates of the server the provider is connected to.
+		{NewExchangeCertificateResource, listQuery{noun: "ExchangeCertificate"}, false},
+		{NewExchangeCertificateServicesResource, listQuery{noun: "ExchangeCertificate"}, false},
 	}
 	for _, spec := range objectSpecs {
 		regs = append(regs, registration{newObjectResource(spec), spec.listQuery(), spec.edge || spec.edgeOnly})

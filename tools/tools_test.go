@@ -16,7 +16,7 @@ import (
 const roleGroupScript = "new_role_group.ps1"
 
 var (
-	cmdletRe   = regexp.MustCompile(`\b(?:Get|Set|New|Remove|Enable|Disable)-[A-Z][A-Za-z]+`)
+	cmdletRe   = regexp.MustCompile(`\b(?:Get|Set|New|Remove|Enable|Disable|Import)-[A-Z][A-Za-z]+`)
 	functionRe = regexp.MustCompile(`(?m)^\s*function\s+([A-Za-z]+-[A-Za-z]+)`)
 	listRe     = regexp.MustCompile(`(?s)\$ProviderCmdlets = @\((.*?)\n\)`)
 	rolesRe    = regexp.MustCompile(`(?s)\$ProviderRoles = @\((.*?)\n\)`)
@@ -108,7 +108,7 @@ func edgeOnlyNouns(t *testing.T) map[string]bool {
 // cmdlets, so they need no management role. Set-CASMailbox and
 // Set-ExternalInOutlook only appear in comments.
 var builtins = map[string]bool{
-	"Get-Command": true, "Get-Item": true, "Get-PSSession": true, "Get-PSSnapin": true, "Get-TypeData": true,
+	"Get-Command": true, "Get-Item": true, "Import-Module": true, "Import-PSSession": true, "Get-PSSession": true, "Get-PSSnapin": true, "Get-TypeData": true,
 	"New-Object": true, "New-PSSession": true, "New-PSSessionOption": true, "Remove-PSSession": true,
 	"Remove-TypeData": true, "Set-StrictMode": true, "Set-CASMailbox": true, "Set-ExternalInOutlook": true,
 }
