@@ -42,6 +42,13 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mailbox) |
 | [`msexchangeserver_organization_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/organization_config) |
 | [`msexchangeserver_remote_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_mailbox) |
+| [`msexchangeserver_email_address_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/email_address_policy) |
+| [`msexchangeserver_mobile_device_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mobile_device_mailbox_policy) |
+| [`msexchangeserver_owa_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/owa_mailbox_policy) |
+| [`msexchangeserver_remote_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_domain) |
+| [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/retention_policy) |
+| [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/retention_policy_tag) |
+| [`msexchangeserver_transport_rule`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/transport_rule) |
 
 ## Singletons
 
