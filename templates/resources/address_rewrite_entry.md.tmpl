@@ -1,0 +1,43 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Edge Transport"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+On an Edge Transport server, the account is a local administrator: Exchange has no role-based access control there. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-AddressRewriteEntry`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-addressrewriteentry?view=exchange-ps)
+- [`Get-AddressRewriteEntry`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-addressrewriteentry?view=exchange-ps)
+- [`Set-AddressRewriteEntry`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-addressrewriteentry?view=exchange-ps)
+- [`Remove-AddressRewriteEntry`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-addressrewriteentry?view=exchange-ps)
+
+## Import
+
+Import using the entry name:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

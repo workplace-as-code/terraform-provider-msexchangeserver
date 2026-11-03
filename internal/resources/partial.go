@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -94,6 +95,30 @@ func optionalInt64(description string, validators ...validator.Int64) schema.Int
 		MarkdownDescription: description,
 		Validators:          validators,
 		PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+	}
+}
+
+// setValue converts the strings returned by Exchange to a set attribute,
+// without duplicates, which a set cannot hold.
+func setValue(values []string) types.Set {
+	seen := map[string]bool{}
+	elems := make([]attr.Value, 0, len(values))
+	for _, v := range values {
+		if !seen[v] {
+			seen[v] = true
+			elems = append(elems, types.StringValue(v))
+		}
+	}
+	return types.SetValueMust(types.StringType, elems)
+}
+
+func optionalSet(description string) schema.SetAttribute {
+	return schema.SetAttribute{
+		ElementType:         types.StringType,
+		Optional:            true,
+		Computed:            true,
+		MarkdownDescription: description,
+		PlanModifiers:       []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
 	}
 }
 

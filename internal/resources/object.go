@@ -47,6 +47,7 @@ const (
 	minutesField // Exchange time span shorter than a day or not a whole number of days, in minutes
 	sizeField    // Exchange size (ByteQuantifiedSize), exposed in megabytes; 0 is Unlimited
 	limitField   // Exchange count that accepts Unlimited; 0 is Unlimited
+	setField     // multi-valued property whose order Exchange does not keep
 )
 
 // field maps one Terraform attribute to one cmdlet parameter and property.
@@ -70,6 +71,17 @@ func stringAttr(name, param, desc string) field {
 
 func listAttr(name, param, desc string) field {
 	return field{name: name, param: param, kind: listField, desc: desc}
+}
+
+func int64Attr(name, param, desc string, validators ...validator.Int64) field {
+	return field{name: name, param: param, kind: int64Field, desc: desc, validators: validators}
+}
+
+// setAttr is a multi-valued property that Exchange returns in its own order
+// (bindings, IP ranges, flags such as PermissionGroups): a set, so that the
+// order of the configuration never shows as a change.
+func setAttr(name, param, desc string) field {
+	return field{name: name, param: param, kind: setField, desc: desc}
 }
 
 // sizeAttr is an Exchange size such as MaxSendSize, written as "<n>MB" and
@@ -114,7 +126,10 @@ type objectSpec struct {
 	noun        string // cmdlet noun, e.g. "RetentionPolicyTag"
 	script      string // bridge script; "" means object.ps1
 	singleton   bool   // organization-wide setting: Get/Set only
+	adopted     bool   // named object that cannot be created or removed: Get/Set only
 	edge        bool   // also available on Edge Transport servers
+	edgeOnly    bool   // Edge Transport only (no RBAC there): kept out of the role group of tools/new_role_group.ps1
+	listBy      string // property holding the import ID in listings, when neither Name nor Identity
 	identity    string // singleton identity ("" calls Get/Set without -Identity)
 	description string // first sentence of the resource documentation
 	notes       string // appended to the description
@@ -140,6 +155,14 @@ func (s objectSpec) listQuery() listQuery {
 	if s.singleton {
 		return listQuery{id: s.singletonID()}
 	}
+	if s.listBy != "" {
+		return listQuery{noun: s.noun, property: s.listBy}
+	}
+	if s.adopted {
+		// Adopted objects exist once per server: only the identity
+		// ("EX01\owa (Default Web Site)") tells them apart.
+		return listQuery{noun: s.noun}
+	}
 	return listQuery{noun: s.noun, property: "Name"}
 }
 
@@ -162,6 +185,8 @@ func (f field) attrType() attr.Type {
 		return types.Int64Type
 	case listField:
 		return types.ListType{ElemType: types.StringType}
+	case setField:
+		return types.SetType{ElemType: types.StringType}
 	default:
 		return types.StringType
 	}
@@ -185,6 +210,8 @@ func (f field) schemaAttribute() schema.Attribute {
 		return a
 	case listField:
 		return optionalList(f.desc)
+	case setField:
+		return optionalSet(f.desc)
 	default:
 		a := optionalString(f.desc)
 		if f.forceNew {
@@ -241,6 +268,11 @@ func (r *objectResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		}
 		desc = fmt.Sprintf("%s (`New-%s`). Attributes left out of the configuration take the Exchange default when the object "+
 			"is created and are not managed afterwards.", r.spec.description, r.spec.noun)
+		if r.spec.adopted {
+			desc = fmt.Sprintf("%s (`Set-%s`). The object cannot be created: the resource adopts the existing one. "+
+				"Only the attributes set in the configuration are managed; the others keep their current value. "+
+				"Destroying this resource removes it from Terraform state without changing Exchange.", r.spec.description, r.spec.noun)
+		}
 	}
 	if r.spec.notes != "" {
 		desc += " " + r.spec.notes
@@ -270,7 +302,7 @@ func (r *objectResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 	action := "Create"
-	if r.spec.singleton {
+	if r.spec.singleton || r.spec.adopted {
 		action = "Update"
 	}
 	state, diags := r.write(ctx, action, plan, config, r.identity(plan))
@@ -320,8 +352,8 @@ func (r *objectResource) Update(ctx context.Context, req resource.UpdateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-// Delete removes the object. Organization-wide settings cannot be deleted: they are
-// only removed from Terraform state.
+// Delete removes the object. Organization-wide settings and adopted objects
+// cannot be deleted: they are only removed from Terraform state.
 func (r *objectResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var prior types.Object
 	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
@@ -330,6 +362,10 @@ func (r *objectResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 	if r.spec.singleton {
 		warnStateOnlyDestroy(&resp.Diagnostics, r.spec.typeName, "Organization-wide settings cannot be deleted.")
+		return
+	}
+	if r.spec.adopted {
+		warnStateOnlyDestroy(&resp.Diagnostics, r.spec.typeName, "This object cannot be deleted.")
 		return
 	}
 	if _, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params("Delete", r.identity(prior), nil)); err != nil {
@@ -440,6 +476,10 @@ func (r *objectResource) write(ctx context.Context, action string, plan, config 
 			items := []string{}
 			diags.Append(tv.ElementsAs(ctx, &items, false)...)
 			values[f.param] = items
+		case types.Set:
+			items := []string{}
+			diags.Append(tv.ElementsAs(ctx, &items, false)...)
+			values[f.param] = items
 		}
 	}
 	if diags.HasError() {
@@ -499,6 +539,8 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Objec
 			values[f.name] = types.Int64Value(unlimitedCount(raw))
 		case listField:
 			values[f.name] = listValue(toStrings(raw))
+		case setField:
+			values[f.name] = setValue(toStrings(raw))
 		case enumField:
 			s, _ := raw.(string)
 			priorValue, _ := priorAttrs[f.name].(types.String)

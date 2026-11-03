@@ -27,15 +27,29 @@ Remove-PSSession $session
 
 **Least-privilege role group (recommended)**
 
-[`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) creates a role group with only the management roles that contain the cmdlets the provider runs, and adds the write account to it. Unlike Organization Management, the group cannot create, delete or change mailboxes and other recipients, nor manage servers, databases or connectors. Its roles:
+[`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) creates a role group with only the management roles that contain the cmdlets the provider runs, and adds the write account to it. Unlike Organization Management, the group cannot create, delete or change mailboxes and other recipients, nor create or remove servers, databases or virtual directories. Its roles:
 
 - **E-Mail Address Policies**
 - **Organization Configuration**
 - **Organization Transport Settings**
+- **Receive Connectors**
 - **Recipient Policies**
 - **Remote and Accepted Domains**
+- **Send Connectors**
 - **Transport Rules**
-- `terraform-msexchangeserver Retention`, a custom role that the script creates from **Retention Management** with only the retention policy and tag cmdlets, `Get-Mailbox` and `Set-ADServerSettings` (used with `domain_controller`). The built-in role can also set litigation holds and disable accounts.
+
+When a built-in role grants much more than the provider needs, the script creates a custom role from it that keeps only the provider's cmdlets:
+
+| Custom role | From | Keeps | The built-in role can also |
+|---|---|---|---|
+| `terraform-msexchangeserver Retention` | **Retention Management** | Retention policy and tag cmdlets, `Get-Mailbox`, `Set-ADServerSettings` (used with `domain_controller`) | Set litigation holds and disable accounts |
+| `terraform-msexchangeserver Remote Mailboxes` | **View-Only Recipients** | `Get-RemoteMailbox` | Export mailbox diagnostic logs |
+| `terraform-msexchangeserver Virtual Directories` | **Exchange Virtual Directories** | `Get-` and `Set-` cmdlets of the OWA, ECP, EWS, ActiveSync, OAB, MAPI and Autodiscover virtual directories | Create and remove virtual directories, the PowerShell one included |
+| `terraform-msexchangeserver Client Access` | **Exchange Servers** | `Get-` and `Set-ClientAccessService` | Change DAG membership, server component states and every server setting |
+| `terraform-msexchangeserver Databases` | **Databases** | `Get-` and `Set-MailboxDatabase` | Mount, dismount, move and remove databases |
+| `terraform-msexchangeserver Certificates` | **Exchange Server Certificates** | `Get-`, `Import-`, `Enable-` and `Remove-ExchangeCertificate` | Export private keys |
+
+The names above are the defaults, `<role group> <name>`. For a naming convention, `-RoleGroupName` names the role group, `-CustomRolePrefix` replaces the prefix of the custom roles (`-CustomRolePrefix CR-EXCH-TF-` gives `CR-EXCH-TF-Certificates`), and `-CustomRoleNames` names each custom role (`-CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }`). The provider does not depend on these names. After a rename, `-Apply -RemoveExtraRoles` deletes the old custom roles.
 
 A read-only account (for `terraform plan`) needs no new role group: the built-in **View-Only Organization Management** role group contains every cmdlet the provider reads with.
 

@@ -12,7 +12,7 @@ param(
     [string]$Password              = "",
 
     [Parameter(Mandatory)] [ValidatePattern('^[A-Za-z]+$')] [string]$Noun,
-    [ValidateSet("Identity", "Name")] [string]$Property = "Identity"
+    [ValidateSet("Identity", "Name", "IPRange")] [string]$Property = "Identity"
 )
 
 Set-StrictMode -Version Latest
@@ -25,10 +25,21 @@ try {
     $cmdlet = Get-Command "Get-$Noun"
     # Some Get cmdlets return the first 1000 objects only by default.
     $size = if ($cmdlet.Parameters.ContainsKey("ResultSize")) { @{ ResultSize = "Unlimited" } } else { @{} }
+    # Virtual directories: the identity is in Active Directory, reading IIS on
+    # every server is slow and fails when one does not answer.
+    if ($cmdlet.Parameters.ContainsKey("ADPropertiesOnly")) { $size["ADPropertiesOnly"] = $true }
     # Some Get cmdlets report "couldn't be found" when there is no object.
     $objects = try { @(Invoke-BridgeRetry { & "Get-$Noun" @size }) } catch {
         if (-not (Test-BridgeNotFound $_.Exception.Message)) { throw }
         @()
+    }
+    # Exchange certificates come back from the remote session as plain
+    # X509Certificate2 objects, without their Identity: select it on the
+    # server (see exchange_certificate.ps1).
+    $session = @(Get-PSSession | Where-Object { $_.ConfigurationName -eq "Microsoft.Exchange" -and $_.State -eq "Opened" }) |
+        Select-Object -First 1
+    if ($Noun -eq "ExchangeCertificate" -and $null -ne $session) {
+        $objects = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Identity } -ErrorAction Stop)
     }
     $ids = @(foreach ($object in $objects) { [string](Get-BridgeProp $object $Property "") })
     ConvertTo-Json -Compress -InputObject ([string[]]@($ids | Where-Object { $_ }))

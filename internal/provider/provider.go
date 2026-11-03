@@ -150,12 +150,13 @@ func (p *exchangeProvider) ListResources(_ context.Context) []func() list.ListRe
 
 // DataSources returns the list of all data sources.
 func (p *exchangeProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
+	return append([]func() datasource.DataSource{
 		datasources.NewAcceptedDomainDataSource,
 		datasources.NewAcceptedDomainsDataSource,
 		datasources.NewMailboxDataSource,
 		datasources.NewOrganizationConfigDataSource,
-	}
+		datasources.NewRemoteMailboxDataSource,
+	}, resources.DataSources()...)
 }
 
 // envOrConfig returns the HCL config value if set, otherwise the environment

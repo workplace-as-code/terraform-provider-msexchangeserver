@@ -21,6 +21,8 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_accepted_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/accepted_domain) | `Authoritative`, `InternalRelay` or `ExternalRelay` |
 | [`msexchangeserver_remote_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/remote_domain) | Auto-reply, auto-forward and formatting per external domain |
 | [`msexchangeserver_transport_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/transport_config) | Singleton: organization-wide transport settings |
+| [`msexchangeserver_send_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/send_connector) | Not on Edge (EdgeSync manages them) |
+| [`msexchangeserver_receive_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/receive_connector) | Mailbox and Edge |
 
 ## Clients, recipients and organization
 
@@ -33,6 +35,40 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy) | Messaging records management |
 | [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy_tag) | |
 
+## Servers
+
+Objects that exist once per server, and mailbox databases: the resources adopt them by server or database name and never create or remove them. Certificates are the exception: the provider imports and removes them.
+
+| Resource | Notes |
+|---|---|
+| [`msexchangeserver_owa_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/owa_virtual_directory) | URLs only |
+| [`msexchangeserver_ecp_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ecp_virtual_directory) | URLs only |
+| [`msexchangeserver_web_services_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/web_services_virtual_directory) | URLs only |
+| [`msexchangeserver_activesync_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/activesync_virtual_directory) | URLs only |
+| [`msexchangeserver_oab_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/oab_virtual_directory) | URLs only |
+| [`msexchangeserver_mapi_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mapi_virtual_directory) | URLs only |
+| [`msexchangeserver_client_access_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/client_access_service) | Autodiscover URL in Active Directory |
+| [`msexchangeserver_mailbox_database`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mailbox_database) | Quotas, retention and logging; never mounted, dismounted or removed |
+| [`msexchangeserver_exchange_certificate`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/exchange_certificate) | Imported from a PFX (write-only, Terraform 1.11 and later) and removed on destroy |
+| [`msexchangeserver_exchange_certificate_services`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/exchange_certificate_services) | IIS, SMTP, IMAP and POP; only ever added |
+
+## Edge Transport
+
+Anti-spam agents and address rewriting of Edge Transport servers (`role = "Edge"`).
+
+| Resource | Notes |
+|---|---|
+| [`msexchangeserver_content_filter_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/content_filter_config) | Singleton |
+| [`msexchangeserver_sender_filter_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/sender_filter_config) | Singleton |
+| [`msexchangeserver_recipient_filter_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/recipient_filter_config) | Singleton |
+| [`msexchangeserver_ip_allow_list_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_allow_list_config) | Singleton |
+| [`msexchangeserver_ip_block_list_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_config) | Singleton |
+| [`msexchangeserver_ip_block_list_providers_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_providers_config) | Singleton |
+| [`msexchangeserver_ip_allow_list_entry`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_allow_list_entry) |  |
+| [`msexchangeserver_ip_block_list_entry`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_entry) |  |
+| [`msexchangeserver_ip_block_list_provider`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ip_block_list_provider) |  |
+| [`msexchangeserver_address_rewrite_entry`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/address_rewrite_entry) |  |
+
 ## Data sources
 
 | Data source |
@@ -41,6 +77,14 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_accepted_domains`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/accepted_domains) |
 | [`msexchangeserver_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mailbox) |
 | [`msexchangeserver_organization_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/organization_config) |
+| [`msexchangeserver_remote_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_mailbox) |
+| [`msexchangeserver_email_address_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/email_address_policy) |
+| [`msexchangeserver_mobile_device_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mobile_device_mailbox_policy) |
+| [`msexchangeserver_owa_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/owa_mailbox_policy) |
+| [`msexchangeserver_remote_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_domain) |
+| [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/retention_policy) |
+| [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/retention_policy_tag) |
+| [`msexchangeserver_transport_rule`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/transport_rule) |
 
 ## Singletons
 

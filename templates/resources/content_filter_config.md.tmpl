@@ -1,0 +1,41 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Edge Transport"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+On an Edge Transport server, the account is a local administrator: Exchange has no role-based access control there. On a Mailbox server with the anti-spam agents installed, it needs the **Transport Hygiene** management role, which the role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) does not include. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Get-ContentFilterConfig`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-contentfilterconfig?view=exchange-ps)
+- [`Set-ContentFilterConfig`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-contentfilterconfig?view=exchange-ps)
+
+## Import
+
+The resource is a singleton. Import it with the ID `default`:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

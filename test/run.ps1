@@ -53,6 +53,11 @@
 .PARAMETER DebugLog
     Also writes Terraform's debug log (TF_LOG=DEBUG) next to the log file.
 
+.PARAMETER RemoteMailbox
+    Identity of an existing remote mailbox (New-RemoteMailbox or
+    Enable-RemoteMailbox), read by the remote mailbox data source. Without it,
+    that data source is skipped.
+
 .EXAMPLE
     .\run.ps1 -Server exch01.contoso.local -Username CONTOSO\administrator -Step check
 
@@ -73,7 +78,8 @@ param(
     [ValidateSet("check", "all")] [string]$Step = "all",
     [string]$ProviderPath = (Join-Path $PSScriptRoot "terraform-provider-msexchangeserver.exe"),
     [switch]$OneShot,
-    [switch]$DebugLog
+    [switch]$DebugLog,
+    [string]$RemoteMailbox = ""
 )
 
 Set-StrictMode -Version Latest
@@ -92,13 +98,32 @@ $Created = [ordered]@{
     "msexchangeserver_email_address_policy.test"    = "TF-CI-AddressPolicy"
     "msexchangeserver_retention_policy.test"        = "TF-CI-Retention"
     "msexchangeserver_retention_policy_tag.test"    = "TF-CI-RetentionTag"
+    "msexchangeserver_send_connector.test"          = "TF-CI-Send"
+    "msexchangeserver_receive_connector.test"       = "$((($Server -split '\.')[0]).ToUpper())\TF-CI-Receive"
 }
 # Organization-wide objects imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this")
+# Per-server objects adopted by main.tf (they exist on every server), imported
+# by server name and never destroyed.
+$Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
+    "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service",
+    "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
+# Adopted objects whose settings the update phase changes: applied again with
+# phase=create to put back their original values. restore=true gives IIS, POP,
+# IMAP and the default SMTP certificate back to the certificates that had them
+# before the test.
+$RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test",
+    "-target=msexchangeserver_exchange_certificate_services.original",
+    "-target=msexchangeserver_exchange_certificate_services.original_iis",
+    "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
+$restorePending = $false
 # Resource types listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbox_policy",
     "mobile_device_mailbox_policy", "email_address_policy", "retention_policy",
-    "retention_policy_tag", "organization_config", "transport_config")
+    "retention_policy_tag", "organization_config", "transport_config", "owa_virtual_directory", "ecp_virtual_directory",
+    "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
+    "client_access_service", "mailbox_database", "send_connector", "receive_connector", "exchange_certificate",
+    "exchange_certificate_services")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -218,6 +243,42 @@ try {
     }
 
     # -----------------------------------------------------------------------
+    Write-Step "Test certificate"
+    # Self-signed, made once per account and reused while it stays valid: a
+    # certificate left on the server by an interrupted run then has the
+    # thumbprint of the next run, whose pre-cleanup removes it. Its key is in a
+    # CryptoAPI provider: Exchange refuses a CNG key, the default of
+    # New-SelfSignedCertificate, for the default SMTP certificate.
+    $certDir = Join-Path $env:LOCALAPPDATA "msexchangeserver-test"
+    $pfxPath = Join-Path $certDir "tf-ci-cert-capi.pfx"
+    $pfxPasswordPath = Join-Path $certDir "tf-ci-cert-capi.txt"
+    $pfxData = $null
+    if ((Test-Path -LiteralPath $pfxPath) -and (Test-Path -LiteralPath $pfxPasswordPath)) {
+        $pfxPassword = (Get-Content -Raw -LiteralPath $pfxPasswordPath).Trim()
+        $pfxData = Get-PfxData -FilePath $pfxPath -Password (ConvertTo-SecureString $pfxPassword -AsPlainText -Force)
+        if ($pfxData.EndEntityCertificates[0].NotAfter -lt (Get-Date).AddDays(30)) { $pfxData = $null }
+    }
+    if ($null -eq $pfxData) {
+        New-Item -ItemType Directory -Force -Path $certDir | Out-Null
+        $pfxPassword = [guid]::NewGuid().ToString()
+        $selfSigned = New-SelfSignedCertificate -Subject "CN=tf-ci-cert.example" -DnsName "tf-ci-cert.example" `
+            -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(1) `
+            -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeySpec KeyExchange
+        try {
+            Export-PfxCertificate -Cert $selfSigned -FilePath $pfxPath -Password (ConvertTo-SecureString $pfxPassword -AsPlainText -Force) | Out-Null
+        } finally {
+            Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($selfSigned.Thumbprint)" -DeleteKey
+        }
+        Set-Content -LiteralPath $pfxPasswordPath -Value $pfxPassword -NoNewline -Encoding ASCII
+        $pfxData = Get-PfxData -FilePath $pfxPath -Password (ConvertTo-SecureString $pfxPassword -AsPlainText -Force)
+        Write-Info "New test certificate in $pfxPath"
+    }
+    $testCertificate = $pfxData.EndEntityCertificates[0].Thumbprint
+    $Created["msexchangeserver_exchange_certificate.test"] = "$Server\$testCertificate"
+    $Created["msexchangeserver_exchange_certificate_services.test"] = "$Server\$testCertificate"
+    Write-Pass "Test certificate $testCertificate (valid until $($pfxData.EndEntityCertificates[0].NotAfter.ToString('yyyy-MM-dd')))"
+
+    # -----------------------------------------------------------------------
     $scheme = if ($CertificateThumbprint) { "https" } else { "http" }
     Write-Step "Connection to ${scheme}://$Server/PowerShell/"
     # Integrated: no credential, New-PSSession uses the Kerberos ticket of this session
@@ -237,6 +298,11 @@ try {
         # The Exchange endpoint runs remote commands without the PowerShell
         # language (NoLanguage mode): only plain cmdlet calls, results processed here.
         $domains = @(Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain })
+        $databases = @(Invoke-Command -Session $session -ScriptBlock { Get-MailboxDatabase })
+        # Selected on the server: the certificates would otherwise come back
+        # as X509Certificate2 objects, without their services.
+        $certificates = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Thumbprint, Services, Subject, IsSelfSigned })
+        $transport = @(Invoke-Command -Session $session -ScriptBlock { Get-TransportService | Select-Object Name, InternalTransportCertificateThumbprint })
         # Only to show the version: the provider's role group has no Get-ExchangeServer.
         $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
     } finally {
@@ -245,6 +311,32 @@ try {
     $default = @($domains | Where-Object { "$($_.Default)" -eq "True" }) | Select-Object -First 1
     if ($null -eq $default) { Stop-Test "No default accepted domain found" }
     Write-Pass "Connected. Accepted domains: $(($domains | ForEach-Object { "$($_.DomainName)" }) -join ', ')"
+    # The mailbox database adopted by the test: one of the tested server, and its
+    # deleted item retention, which the update phase changes and run.ps1 restores.
+    $database = @($databases | Where-Object { "$($_.Server)" -eq ($Server -split '\.')[0] }) + @($databases) | Select-Object -First 1
+    if ($null -eq $database) { Stop-Test "No mailbox database found" }
+    $retentionDays = [int](("$($database.DeletedItemRetention)" -split '\.')[0])
+    Write-Pass "Mailbox database: $($database.Name) (deleted item retention: $retentionDays days)"
+    # The certificate enabled for POP and IMAP, which the test moves to its own
+    # certificate and back.
+    $original = @($certificates | Where-Object {
+        # [string]: "$x" gives the number of a deserialized enum, not its names
+        [string]$_.Services -match 'POP' -and [string]$_.Services -match 'IMAP' -and "$($_.Thumbprint)" -ne $testCertificate
+    }) | Select-Object -First 1
+    if ($null -eq $original) { Stop-Test "No certificate of $Server is enabled for POP and IMAP besides the test one: enable them on its certificate first" }
+    Write-Pass "Certificate for POP and IMAP: $($original.Thumbprint) ($($original.Subject))"
+    # The default SMTP certificate, which the update phase replaces with the
+    # test one and run.ps1 puts back.
+    $originalSmtp = [string](@($transport | Where-Object { "$($_.Name)" -eq ($Server -split '\.')[0] }) | Select-Object -First 1).InternalTransportCertificateThumbprint
+    if (-not $originalSmtp -or $originalSmtp -eq $testCertificate) { Stop-Test "No default SMTP certificate found for $Server besides the test one: enable SMTP on its certificate first" }
+    Write-Pass "Default SMTP certificate: $originalSmtp"
+    # The HTTPS certificate of the server, which the update phase replaces with
+    # the test one: the Exchange servers' self-signed certificate is enabled for
+    # IIS too, for the back-end site, so prefer one issued by a CA.
+    $originalIis = @($certificates | Where-Object { [string]$_.Services -match 'IIS' -and "$($_.Thumbprint)" -ne $testCertificate } |
+        Sort-Object { [bool]$_.IsSelfSigned }) | Select-Object -First 1
+    if ($null -eq $originalIis) { Stop-Test "No certificate of $Server is enabled for IIS besides the test one" }
+    Write-Pass "Certificate for IIS: $($originalIis.Thumbprint) ($($originalIis.Subject))"
     $exchange = @($servers | Where-Object { "$($_.Fqdn)" -eq $Server }) | Select-Object -First 1
     if ($null -eq $exchange) { $exchange = $servers | Select-Object -First 1 }
     if ($null -ne $exchange) { Write-Info "Exchange server: $($exchange.Name), version $($exchange.AdminDisplayVersion)" }
@@ -279,6 +371,16 @@ try {
         $env:EXCHANGE_PASSWORD    = $cred.GetNetworkCredential().Password
     }
     $env:TF_VAR_default_domain = "$($default.Name)"
+    $env:TF_VAR_test_remote_mailbox = $RemoteMailbox
+    $env:TF_VAR_exchange_server = $Server
+    $env:TF_VAR_test_database = "$($database.Name)"
+    $env:TF_VAR_test_database_retention_days = "$retentionDays"
+    $env:TF_VAR_test_certificate = $testCertificate
+    $env:TF_VAR_test_pfx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfxPath))
+    $env:TF_VAR_test_pfx_password = $pfxPassword
+    $env:TF_VAR_original_certificate = "$($original.Thumbprint)"
+    $env:TF_VAR_original_iis_certificate = "$($originalIis.Thumbprint)"
+    $env:TF_VAR_original_smtp_certificate = $originalSmtp
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"
@@ -316,6 +418,10 @@ try {
 
     # -----------------------------------------------------------------------
     Write-Step "terraform apply"
+    # From here on, the adopted objects and the POP service hold test values:
+    # the finally block puts the original ones back if the run stops before
+    # the destroy step.
+    $restorePending = $true
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color) "terraform apply"
     Write-Pass "Apply"
     Assert-NoChanges "Drift check after apply"
@@ -331,7 +437,12 @@ try {
         Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address"
         Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $Created[$address]) "Import of $address"
     }
-    Write-Pass "$($Created.Count) resources imported"
+    foreach ($address in $Adopted) {
+        Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address"
+        $id = if ($address -like "*mailbox_database*") { "$($database.Name)" } else { $Server }
+        Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $id) "Import of $address"
+    }
+    Write-Pass "$($Created.Count + $Adopted.Count) resources imported"
     # apply_to_recipients is a provider setting that Exchange does not store: an
     # imported policy has none, so the first apply only records it. It applies
     # nothing, since no setting of the policy changes.
@@ -376,7 +487,11 @@ try {
 
     # -----------------------------------------------------------------------
     Write-Step "terraform destroy"
-    foreach ($address in $Keep) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
+    # Adopted objects stay: put back what the update phase changed first.
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the adopted objects"
+    Assert-NoChanges "OAB external URL, database retention and certificates restored" $RestoreTargets
+    $restorePending = $false
+    foreach ($address in @($Keep) + $Adopted + @("original", "original_iis", "original_smtp" | ForEach-Object { "msexchangeserver_exchange_certificate_services.$_[0]" })) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"
     Write-Pass "Destroy"
@@ -397,6 +512,14 @@ try {
     Write-Host "  Imported read-only: organization_config, transport_config"
     Write-Host "  Data sources: accepted_domain, accepted_domains, organization_config"
 } finally {
+    if ($restorePending) {
+        Write-Host ""
+        Write-Host "Putting back the original OAB external URL, database retention and certificates..." -ForegroundColor Yellow
+        $r = Invoke-Tf apply -auto-approve -no-color @RestoreTargets
+        if ($r.Code -ne 0) {
+            Write-Host "  WARN Could not put them back: apply test\main.tf with phase=create and the targets of `$RestoreTargets" -ForegroundColor Red
+        }
+    }
     if ($pushed) { Pop-Location }
     # The other test scripts of this window (edge, transport) do not set the method
     Remove-Item Env:EXCHANGE_PASSWORD, Env:EXCHANGE_AUTH_METHOD -ErrorAction SilentlyContinue

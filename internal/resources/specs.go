@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 )
 
@@ -91,4 +93,298 @@ var objectSpecs = []objectSpec{
 				int64validator.Between(1, 35791394)),
 		},
 	},
+	{
+		typeName:    "send_connector",
+		noun:        "SendConnector",
+		script:      "send_connector.ps1",
+		description: "Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts",
+		notes: "`address_spaces` is required to create a connector, which is created with the `Custom` usage. The connectors that EdgeSync creates (`EdgeSync - ...`) " +
+			"can be read or imported, but EdgeSync overwrites any change. The provider never sends smart host credentials: " +
+			"the password would be stored in the Terraform state.",
+		fields: []field{
+			setAttr("address_spaces", "AddressSpaces", "Domains the connector routes mail to, as `contoso.com` or `contoso.com;10` "+
+				"with a cost (1 by default). `*` routes all external mail; `*.contoso.com` includes the subdomains."),
+			setAttr("smart_hosts", "SmartHosts", "Host names or IP addresses mail is sent to. Leave empty and set "+
+				"`dns_routing_enabled` to route with DNS MX records."),
+			boolAttr("dns_routing_enabled", "DNSRoutingEnabled", "Route mail with DNS MX records instead of smart hosts."),
+			setAttr("source_transport_servers", "SourceTransportServers", "Mailbox or Edge servers that send mail through the connector."),
+			int64Attr("port", "Port", "TCP port of the destination.", int64validator.Between(1, 65535)),
+			stringAttr("fqdn", "Fqdn", "Name the servers give in the HELO or EHLO command. Empty uses each server's FQDN."),
+			sizeAttr("max_message_size_mb", "MaxMessageSize", "Largest message, in megabytes, the connector sends. `0` means unlimited."),
+			boolAttr("enabled", "Enabled", "Whether the connector is used."),
+			boolAttr("frontend_proxy_enabled", "FrontendProxyEnabled", "Send outgoing mail through the Front End Transport service."),
+			boolAttr("require_tls", "RequireTLS", "Require TLS: mail waits in the queue when the destination does not offer it."),
+			enumAttr("tls_auth_level", "TlsAuthLevel", "Check made on the certificate of the destination when `require_tls` is `true`.",
+				"EncryptionOnly", "CertificateValidation", "DomainValidation"),
+			stringAttr("tls_domain", "TlsDomain", "Domain the certificate of the destination must match with `DomainValidation`."),
+			stringAttr("tls_certificate_name", "TlsCertificateName", "Certificate the servers present, as `<I>issuer<S>subject`."),
+			enumAttr("smart_host_auth_mechanism", "SmartHostAuthMechanism", "Authentication with the smart hosts. `BasicAuth` and "+
+				"`BasicAuthRequireTLS` need a user name and password, which the provider does not manage: set them with "+
+				"`Set-SendConnector -AuthenticationCredential` first. `ExchangeServer` is used by the connectors of EdgeSync.",
+				"None", "BasicAuth", "BasicAuthRequireTLS", "ExchangeServer", "ExternalAuthoritative"),
+			enumAttr("protocol_logging_level", "ProtocolLoggingLevel", "SMTP protocol logging.", "None", "Verbose"),
+			stringAttr("comment", "Comment", "Free text about the connector."),
+		},
+	},
+	{
+		typeName: "receive_connector",
+		noun:     "ReceiveConnector",
+		script:   "receive_connector.ps1",
+		edge:     true,
+		description: "Manages a receive connector of an Exchange server, which accepts SMTP connections on given addresses " +
+			"and ports from given IP ranges",
+		notes: "`name` is the identity of the connector, `<server>\\<name>`, with the server's short name, as " +
+			"`Get-ReceiveConnector` shows it: changing it creates a new connector on that server. `bindings` is required to " +
+			"create a connector, which is created with the `Custom` usage: set its `permission_groups` and `auth_mechanism`. For an application that relays mail, prefer `permission_groups = [\"ExchangeServers\"]` with " +
+			"`auth_mechanism = [\"ExternalAuthoritative\"]` on narrow `remote_ip_ranges`: it needs no Active Directory permission.",
+		fields: []field{
+			enumAttr("transport_role", "TransportRole", "Transport service of the connector on a Mailbox server.",
+				"FrontendTransport", "HubTransport"),
+			setAttr("bindings", "Bindings", "Local addresses and ports, as `0.0.0.0:25` or `[::]:25`."),
+			setAttr("remote_ip_ranges", "RemoteIPRanges", "Remote IP addresses, ranges (`10.0.0.1-10.0.0.9`) or CIDR blocks the connector accepts."),
+			setAttr("permission_groups", "PermissionGroups", "Groups allowed to use the connector: `AnonymousUsers`, `ExchangeUsers`, "+
+				"`ExchangeServers`, `ExchangeLegacyServers`, `Partners`, `Custom`."),
+			setAttr("auth_mechanism", "AuthMechanism", "Authentication offered: `None`, `Tls`, `Integrated`, `BasicAuth`, "+
+				"`BasicAuthRequireTLS`, `ExchangeServer`, `ExternalAuthoritative`."),
+			boolAttr("require_tls", "RequireTLS", "Require TLS for every connection."),
+			stringAttr("fqdn", "Fqdn", "Name the connector gives in its banner and EHLO response."),
+			stringAttr("banner", "Banner", "SMTP banner, starting with `220`. Empty uses the Exchange default."),
+			sizeAttr("max_message_size_mb", "MaxMessageSize", "Largest message, in megabytes, the connector accepts. `0` means unlimited."),
+			stringAttr("tls_certificate_name", "TlsCertificateName", "Certificate the connector presents, as `<I>issuer<S>subject`."),
+			boolAttr("enabled", "Enabled", "Whether the connector accepts connections."),
+			enumAttr("protocol_logging_level", "ProtocolLoggingLevel", "SMTP protocol logging.", "None", "Verbose"),
+			stringAttr("comment", "Comment", "Free text about the connector."),
+		},
+	},
+	{
+		typeName: "mailbox_database",
+		noun:     "MailboxDatabase",
+		adopted:  true,
+		description: "Manages the quotas, retention and logging settings of a mailbox database. Mailboxes without " +
+			"quotas of their own use the database's",
+		notes: "`name` is the database name, unique in the organization. Databases are created and removed with the " +
+			"Exchange tools: the provider never mounts, dismounts or removes them. Sizes are in megabytes, `0` meaning unlimited.",
+		fields: []field{
+			sizeAttr("issue_warning_quota_mb", "IssueWarningQuota", "Mailbox size at which users are warned."),
+			sizeAttr("prohibit_send_quota_mb", "ProhibitSendQuota", "Mailbox size at which users can no longer send."),
+			sizeAttr("prohibit_send_receive_quota_mb", "ProhibitSendReceiveQuota", "Mailbox size at which the mailbox can no longer send or receive."),
+			sizeAttr("recoverable_items_warning_quota_mb", "RecoverableItemsWarningQuota", "Size of the Recoverable Items folder at which "+
+				"Exchange logs a warning."),
+			sizeAttr("recoverable_items_quota_mb", "RecoverableItemsQuota", "Largest size of the Recoverable Items folder."),
+			sizeAttr("calendar_logging_quota_mb", "CalendarLoggingQuota", "Largest size of the calendar log in the Recoverable Items folder."),
+			daysAttr("deleted_item_retention_days", "DeletedItemRetention", "Days deleted items stay recoverable.",
+				int64validator.Between(0, 24855)),
+			daysAttr("mailbox_retention_days", "MailboxRetention", "Days a deleted mailbox is kept in the database.",
+				int64validator.Between(0, 24855)),
+			boolAttr("retain_deleted_items_until_backup", "RetainDeletedItemsUntilBackup",
+				"Keep deleted items and mailboxes until the database is backed up, even after their retention period."),
+			boolAttr("circular_logging_enabled", "CircularLoggingEnabled", "Overwrite the transaction logs once their changes are "+
+				"in the database. Outside a database availability group, the change applies after the database is next mounted."),
+			boolAttr("is_excluded_from_provisioning", "IsExcludedFromProvisioning",
+				"Exclude the database from the automatic placement of new mailboxes."),
+			boolAttr("mount_at_startup", "MountAtStartup", "Mount the database when the Information Store service starts."),
+			stringAttr("offline_address_book", "OfflineAddressBook", "Offline address book of the mailboxes of the database, by name."),
+		},
+	},
+	{
+		typeName:    "content_filter_config",
+		noun:        "ContentFilterConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the content filter agent: what happens to a message according to its spam confidence level (SCL)",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the agent filters messages."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Filter messages from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Filter messages from authenticated partners and internal servers."),
+			boolAttr("scl_reject_enabled", "SCLRejectEnabled", "Reject the messages that reach `scl_reject_threshold`."),
+			int64Attr("scl_reject_threshold", "SCLRejectThreshold", "SCL from which messages are rejected.", int64validator.Between(0, 9)),
+			boolAttr("scl_delete_enabled", "SCLDeleteEnabled", "Delete the messages that reach `scl_delete_threshold`."),
+			int64Attr("scl_delete_threshold", "SCLDeleteThreshold", "SCL from which messages are deleted.", int64validator.Between(0, 9)),
+			boolAttr("scl_quarantine_enabled", "SCLQuarantineEnabled", "Send the messages that reach `scl_quarantine_threshold` to the quarantine mailbox."),
+			int64Attr("scl_quarantine_threshold", "SCLQuarantineThreshold", "SCL from which messages are quarantined.", int64validator.Between(0, 9)),
+			stringAttr("quarantine_mailbox", "QuarantineMailbox", "Address of the quarantine mailbox."),
+			stringAttr("rejection_response", "RejectionResponse", "Text of the rejection, up to 240 characters."),
+			setAttr("bypassed_senders", "BypassedSenders", "Senders whose messages are never filtered."),
+			setAttr("bypassed_sender_domains", "BypassedSenderDomains", "Sender domains whose messages are never filtered."),
+			setAttr("bypassed_recipients", "BypassedRecipients", "Recipients whose messages are never filtered."),
+		},
+	},
+	{
+		typeName:    "sender_filter_config",
+		noun:        "SenderFilterConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the sender filter agent, which blocks given senders and domains",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the agent filters messages."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Filter messages from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Filter messages from authenticated partners and internal servers."),
+			setAttr("blocked_senders", "BlockedSenders", "Blocked sender addresses."),
+			setAttr("blocked_domains", "BlockedDomains", "Blocked sender domains, without their subdomains."),
+			setAttr("blocked_domains_and_subdomains", "BlockedDomainsAndSubdomains", "Blocked sender domains, with their subdomains."),
+			enumAttr("action", "Action", "What happens to a message from a blocked sender.", "Reject", "StampStatus"),
+			boolAttr("blank_sender_blocking_enabled", "BlankSenderBlockingEnabled", "Block the messages without a sender."),
+		},
+	},
+	{
+		typeName:    "recipient_filter_config",
+		noun:        "RecipientFilterConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the recipient filter agent, which blocks messages to given or unknown recipients",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the agent filters messages."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Filter messages from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Filter messages from authenticated partners and internal servers."),
+			boolAttr("block_list_enabled", "BlockListEnabled", "Block the messages to `blocked_recipients`."),
+			setAttr("blocked_recipients", "BlockedRecipients", "Recipient addresses that never receive mail from outside."),
+			boolAttr("recipient_validation_enabled", "RecipientValidationEnabled", "Reject the messages to recipients that do not exist."),
+		},
+	},
+	{
+		typeName:    "ip_allow_list_config",
+		noun:        "IPAllowListConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the IP allow list of the connection filter agent",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the IP allow list is used."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Use it for connections from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Use it for authenticated partners and internal servers."),
+		},
+	},
+	{
+		typeName:    "ip_block_list_config",
+		noun:        "IPBlockListConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages the IP block list of the connection filter agent",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the IP block list is used."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Use it for connections from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Use it for authenticated partners and internal servers."),
+			stringAttr("static_entry_rejection_response", "StaticEntryRejectionResponse",
+				"Rejection text for the entries added by an administrator, up to 240 characters."),
+			stringAttr("machine_entry_rejection_response", "MachineEntryRejectionResponse",
+				"Rejection text for the entries added by sender reputation, up to 240 characters."),
+		},
+	},
+	{
+		typeName:    "ip_block_list_providers_config",
+		noun:        "IPBlockListProvidersConfig",
+		singleton:   true,
+		edgeOnly:    true,
+		description: "Manages how the connection filter agent uses the IP block list providers (DNS block lists)",
+		notes:       edgeNote,
+		fields: []field{
+			boolAttr("enabled", "Enabled", "Whether the providers are queried."),
+			boolAttr("external_mail_enabled", "ExternalMailEnabled", "Query them for connections from outside the organization."),
+			boolAttr("internal_mail_enabled", "InternalMailEnabled", "Query them for authenticated partners and internal servers."),
+			setAttr("bypassed_recipients", "BypassedRecipients", "Recipients whose messages are never checked against the providers."),
+		},
+	},
+	ipListEntrySpec("ip_allow_list_entry", "IPAllowListEntry", "allow", "always accepted"),
+	ipListEntrySpec("ip_block_list_entry", "IPBlockListEntry", "block", "always rejected"),
+	{
+		typeName:    "ip_block_list_provider",
+		noun:        "IPBlockListProvider",
+		script:      "ip_block_list_provider.ps1",
+		edgeOnly:    true,
+		description: "Manages an IP block list provider: a DNS block list that the connection filter agent queries",
+		notes:       "`lookup_domain` is required to create a provider. " + edgeNote,
+		fields: []field{
+			stringAttr("lookup_domain", "LookupDomain", "DNS zone of the block list, for example `zen.spamhaus.org`."),
+			boolAttr("enabled", "Enabled", "Whether the provider is queried."),
+			int64Attr("priority", "Priority", "Order in which the providers are queried, 1 first.", int64validator.AtLeast(1)),
+			stringAttr("rejection_response", "RejectionResponse", "Rejection text, up to 240 characters."),
+			boolAttr("any_match", "AnyMatch", "Block when the lookup returns any address."),
+			stringAttr("bitmask_match", "BitmaskMatch", "Block when the returned address matches this bit mask, such as `127.0.0.1`."),
+			setAttr("ip_addresses_match", "IPAddressesMatch", "Block when the lookup returns one of these addresses."),
+		},
+	},
+	{
+		typeName:    "address_rewrite_entry",
+		noun:        "AddressRewriteEntry",
+		edgeOnly:    true,
+		description: "Manages an address rewrite entry, which rewrites the addresses of messages leaving or entering the organization",
+		notes: "`internal_address` and `external_address` are required to create an entry. " +
+			"Address rewriting runs on Edge Transport servers only.",
+		fields: []field{
+			stringAttr("internal_address", "InternalAddress", "Address or domain inside the organization, such as `contoso.com` or `*.contoso.com`."),
+			stringAttr("external_address", "ExternalAddress", "Address or domain the messages show outside."),
+			boolAttr("outbound_only", "OutboundOnly", "Rewrite outgoing messages only. Required with a wildcard `internal_address`."),
+			setAttr("exception_list", "ExceptionList", "Subdomains of a wildcard `internal_address` that are not rewritten."),
+		},
+	},
+	virtualDirectorySpec("owa_virtual_directory", "OwaVirtualDirectory", "Outlook on the web (OWA)", "owa"),
+	virtualDirectorySpec("ecp_virtual_directory", "EcpVirtualDirectory", "Exchange admin center (ECP)", "ecp"),
+	virtualDirectorySpec("web_services_virtual_directory", "WebServicesVirtualDirectory", "Exchange Web Services (EWS)", "EWS"),
+	virtualDirectorySpec("activesync_virtual_directory", "ActiveSyncVirtualDirectory", "Exchange ActiveSync",
+		"Microsoft-Server-ActiveSync"),
+	virtualDirectorySpec("oab_virtual_directory", "OabVirtualDirectory", "offline address book (OAB)", "OAB"),
+	virtualDirectorySpec("mapi_virtual_directory", "MapiVirtualDirectory", "MAPI over HTTP", "mapi"),
+	{
+		typeName: "client_access_service",
+		noun:     "ClientAccessService",
+		script:   "virtual_directory.ps1",
+		adopted:  true,
+		description: "Manages the Autodiscover settings of the Client Access services of an Exchange server: the URL that " +
+			"domain-joined Outlook clients find in Active Directory",
+		notes: "`name` is the server name or FQDN.",
+		fields: []field{
+			stringAttr("autodiscover_service_internal_uri", "AutoDiscoverServiceInternalUri",
+				"Autodiscover URL published in Active Directory (service connection point), for example "+
+					"`https://autodiscover.contoso.com/Autodiscover/Autodiscover.xml`. An empty string clears it."),
+		},
+	},
+}
+
+// edgeNote ends the description of the anti-spam settings of Edge Transport servers.
+const edgeNote = "An Edge Transport setting: on a Mailbox server, it needs the anti-spam agents and the Transport Hygiene role."
+
+// ipListEntrySpec describes an entry of the IP allow or block list. An entry
+// has no name: its IP address or range is its key, and there is no Set-
+// cmdlet, so any change creates a new entry.
+func ipListEntrySpec(typeName, noun, list, effect string) objectSpec {
+	return objectSpec{
+		typeName: typeName,
+		noun:     noun,
+		script:   "ip_list_entry.ps1",
+		edgeOnly: true,
+		listBy:   "IPRange",
+		description: fmt.Sprintf("Manages an entry of the IP %s list of the connection filter agent: connections from the "+
+			"address or range are %s", list, effect),
+		notes: "`name` is the IP address (`192.0.2.10`), CIDR range (`192.0.2.0/24`) or address range " +
+			"(`192.0.2.1-192.0.2.9`), as `Get-" + noun + "` shows it. Any change creates a new entry. " + edgeNote,
+		fields: []field{
+			{name: "comment", param: "Comment", kind: stringField, forceNew: true, desc: "Free text about the entry."},
+			{name: "expiration_time", param: "ExpirationTime", kind: stringField, forceNew: true,
+				desc: "When the entry expires, in RFC 3339 format and UTC, for example `2027-01-31T00:00:00Z`. Empty never expires."},
+		},
+	}
+}
+
+// virtualDirectorySpec describes the virtual directory of noun on the Default
+// Web Site of a server, named "<dir> (Default Web Site)". Only its URLs are
+// managed: its authentication settings are read from IIS, which is slow and
+// fails when the server does not answer.
+func virtualDirectorySpec(typeName, noun, label, dir string) objectSpec {
+	return objectSpec{
+		typeName:    typeName,
+		noun:        noun,
+		script:      "virtual_directory.ps1",
+		adopted:     true,
+		description: fmt.Sprintf("Manages the URLs of the %s virtual directory of an Exchange server", label),
+		notes: fmt.Sprintf("`name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity "+
+			"as `Get-%s` shows it, such as `EX01\\%s (Default Web Site)`. Authentication settings are not managed.", noun, dir),
+		fields: []field{
+			stringAttr("internal_url", "InternalUrl", "URL used inside the network. An empty string clears it."),
+			stringAttr("external_url", "ExternalUrl", "URL used from the internet. An empty string clears it."),
+		},
+	}
 }

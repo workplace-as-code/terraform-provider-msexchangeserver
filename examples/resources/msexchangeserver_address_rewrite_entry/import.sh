@@ -1,0 +1,1 @@
+terraform import msexchangeserver_address_rewrite_entry.subsidiary "Fabrikam to Contoso"

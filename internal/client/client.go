@@ -325,6 +325,13 @@ func (c *Client) Role() string {
 	return c.config.Role
 }
 
+// Persistent reports whether scripts run in persistent PowerShell processes,
+// which receive their parameters on stdin. In one-shot mode the parameters
+// are on the command line, which other users of the machine can read.
+func (c *Client) Persistent() bool {
+	return c.pool != nil
+}
+
 // NewForRole returns a client that only knows its role, for tests of the
 // plan-time checks: it cannot run scripts.
 func NewForRole(role string) *Client {

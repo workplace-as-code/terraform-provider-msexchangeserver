@@ -27,7 +27,8 @@
 
 .PARAMETER Username
     Local administrator of the Edge server, as EDGE01\Administrator. Needed
-    with -Server; the password is asked for.
+    with -Server; the password is asked for, or read from EXCHANGE_PASSWORD
+    when that variable is set (unattended runs).
 
 .PARAMETER ProviderPath
     Path of terraform-provider-msexchangeserver.exe. Defaults to the file in
@@ -56,11 +57,26 @@ $Log = Join-Path $PSScriptRoot "run-edge-$stamp.log"
 $Mode = if ($Server) { "remote" } else { "local" }
 
 # Objects created by the test, as resource address = import ID.
-$Created = [ordered]@{ "msexchangeserver_transport_rule.test" = "TF-CI-EdgeRule" }
+# The receive connector is added once connected: its ID holds the Edge server name.
+$Created = [ordered]@{
+    "msexchangeserver_transport_rule.test"         = "TF-CI-EdgeRule"
+    "msexchangeserver_ip_allow_list_entry.test"    = "192.0.2.10"
+    "msexchangeserver_ip_block_list_entry.test"    = "198.51.100.0/24"
+    "msexchangeserver_ip_block_list_provider.test" = "TF-CI-DNSBL"
+    "msexchangeserver_address_rewrite_entry.test"  = "TF-CI-Rewrite"
+}
 # Imported by main.tf and never destroyed.
-$Keep = @("msexchangeserver_transport_config.this")
+$Keep = @("transport_config", "content_filter_config", "sender_filter_config", "recipient_filter_config",
+    "ip_allow_list_config", "ip_block_list_config", "ip_block_list_providers_config") | ForEach-Object { "msexchangeserver_$_.this" }
+# Imported settings whose values the update phase changes: applied again with
+# phase=create to put back the Exchange defaults, also when the run stops early.
+$RestoreTargets = @("content_filter_config", "sender_filter_config", "recipient_filter_config") |
+    ForEach-Object { "-target=msexchangeserver_$_.this" }
+$restorePending = $false
 # Resource types available on Edge, listed by terraform query.
-$ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "transport_config")
+$ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "transport_config", "receive_connector",
+    "content_filter_config", "sender_filter_config", "recipient_filter_config", "ip_allow_list_config", "ip_block_list_config",
+    "ip_block_list_providers_config", "ip_allow_list_entry", "ip_block_list_entry", "ip_block_list_provider", "address_rewrite_entry")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -183,7 +199,13 @@ try {
         $edgeName = $env:COMPUTERNAME
     } else {
         Write-Step "WinRM connection to $Server (Negotiate, local account)"
-        $cred = Get-Credential -UserName $Username -Message "Local administrator of the Edge server"
+        if ($env:EXCHANGE_PASSWORD) {
+            # Unattended runs (lab automation) give the password in the environment.
+            $secure = ConvertTo-SecureString $env:EXCHANGE_PASSWORD -AsPlainText -Force
+            $cred = New-Object System.Management.Automation.PSCredential($Username, $secure)
+        } else {
+            $cred = Get-Credential -UserName $Username -Message "Local administrator of the Edge server"
+        }
         if ($null -eq $cred) { Stop-Test "No credential given" }
         try {
             $session = New-PSSession -ComputerName $Server -Credential $cred -Authentication Negotiate
@@ -232,6 +254,9 @@ try {
     $env:TF_IN_AUTOMATION   = "1"
     $env:CHECKPOINT_DISABLE = "1"
     $env:EXCHANGE_ROLE      = "Edge"
+    $edgeName = "$edgeName".ToUpper()
+    $Created["msexchangeserver_receive_connector.test"] = "$edgeName\TF-CI-EdgeReceive"
+    $env:TF_VAR_edge_server = $edgeName
     if ($Mode -eq "remote") {
         $env:EXCHANGE_SERVER   = $Server
         $env:EXCHANGE_USERNAME = $Username
@@ -303,18 +328,19 @@ try {
     Write-Pass "Clean"
 
     # -----------------------------------------------------------------------
-    Write-Step "terraform apply (Quarantine rule)"
+    Write-Step "terraform apply"
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color) "terraform apply"
     Write-Pass "Apply"
     Assert-NoChanges "Drift check after apply"
 
-    Write-Step "Update (phase=update: Reject instead of Quarantine)"
+    Write-Step "Update (phase=update)"
+    $restorePending = $true
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update) "terraform apply (update)"
     Write-Pass "Update"
     Assert-NoChanges "Drift check after update" @("-var", "phase=update")
 
     # -----------------------------------------------------------------------
-    Write-Step "Import of the test rule"
+    Write-Step "Import of the test objects"
     foreach ($address in $Created.Keys) {
         Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address"
         Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $Created[$address]) "Import of $address"
@@ -360,12 +386,15 @@ try {
 
     # -----------------------------------------------------------------------
     Write-Step "terraform destroy"
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the anti-spam settings"
+    Assert-NoChanges "Anti-spam settings restored" $RestoreTargets
+    $restorePending = $false
     foreach ($address in $Keep) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"
     Write-Pass "Destroy"
 
-    Write-Step "Checking that the test rule no longer exists"
+    Write-Step "Checking that the test objects no longer exist"
     Reset-State
     $left = @(Import-Orphans)
     if ($left.Count -gt 0) {
@@ -373,11 +402,17 @@ try {
         Stop-Test "Still present after destroy (now removed): $($left -join ', ')"
     }
     Reset-State
-    Write-Pass "The test rule was deleted (the failed import in the log is the expected proof)"
+    Write-Pass "The test objects were deleted (the failed imports in the log are the expected proof)"
 
     Write-Host ""
     Write-Host "All Edge Transport integration tests passed ($Mode)." -ForegroundColor Green
 } finally {
+    if ($restorePending) {
+        Write-Host ""
+        Write-Host "Putting back the anti-spam settings..." -ForegroundColor Yellow
+        $r = Invoke-Tf apply -auto-approve -no-color @RestoreTargets
+        if ($r.Code -ne 0) { Write-Host "  WARN Could not put them back: apply test\edge\main.tf with phase=create and `$RestoreTargets" -ForegroundColor Red }
+    }
     if ($pushed) { Pop-Location }
     Remove-Item Env:EXCHANGE_PASSWORD, Env:EXCHANGE_ROLE -ErrorAction SilentlyContinue
     Write-Host ""
