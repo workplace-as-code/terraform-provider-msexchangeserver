@@ -25,8 +25,8 @@ func TestParseCertificateID(t *testing.T) {
 }
 
 func TestKeptServicesIgnoresServicesNotManaged(t *testing.T) {
-	// The certificate is also the default SMTP certificate: SMTP must not
-	// show up in the state of a resource that only manages POP and IMAP.
+	// Exchange marked the certificate for SMTP on its own: SMTP must not show
+	// up in the state of a resource that only manages POP and IMAP.
 	got := keptServices([]string{"POP", "IMAP"}, []string{"IMAP", "POP", "SMTP"})
 	if !slices.Equal(got, []string{"POP", "IMAP"}) {
 		t.Errorf("got %v", got)

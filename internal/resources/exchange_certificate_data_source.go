@@ -36,6 +36,7 @@ type exchangeCertificateDataModel struct {
 	HasPrivateKey        types.Bool   `tfsdk:"has_private_key"`
 	PrivateKeyExportable types.Bool   `tfsdk:"private_key_exportable"`
 	Services             types.List   `tfsdk:"services"`
+	DefaultSmtp          types.Bool   `tfsdk:"default_smtp_certificate"`
 }
 
 func NewExchangeCertificateDataSource() datasource.DataSource {
@@ -80,11 +81,12 @@ func (d *exchangeCertificateDataSource) Schema(_ context.Context, _ datasource.S
 			"self_signed":            boolean("Whether the certificate is self-signed."),
 			"has_private_key":        boolean("Whether the server has the private key of the certificate."),
 			"private_key_exportable": boolean("Whether the private key can be exported from the server."),
+			"default_smtp_certificate": boolean("Whether the certificate is the default SMTP certificate of the server, the internal " +
+				"transport certificate that encrypts SMTP between Exchange servers and that EdgeSync uses."),
 			"services": schema.ListAttribute{
-				ElementType: types.StringType,
-				Computed:    true,
-				MarkdownDescription: "The services the certificate is enabled for: `IIS`, `IMAP`, `POP`, and `SMTP` when it is the default SMTP " +
-					"certificate of the server. Empty when it has none.",
+				ElementType:         types.StringType,
+				Computed:            true,
+				MarkdownDescription: "The services the certificate is enabled for, for example `IIS` and `SMTP`. Empty when it has none.",
 			},
 		},
 	}
@@ -133,5 +135,6 @@ func (d *exchangeCertificateDataSource) Read(ctx context.Context, req datasource
 		HasPrivateKey:        types.BoolValue(cert.HasPrivateKey),
 		PrivateKeyExportable: types.BoolValue(cert.PrivateKeyExportable),
 		Services:             stringsToList(cert.Services),
+		DefaultSmtp:          types.BoolValue(cert.DefaultSmtp),
 	})...)
 }

@@ -43,7 +43,7 @@ Declare the new certificate as a second resource and move the services to it, th
 1. Add the new `msexchangeserver_exchange_certificate` and point the `msexchangeserver_exchange_certificate_services` resource at its thumbprint. Apply: Exchange enables the services on the new certificate.
 2. Remove the old certificate from the configuration. Apply: the provider removes it from the server.
 
-Changing `thumbprint` on a single certificate resource does not work: Terraform would remove the old certificate before it imports the new one, and the provider refuses to remove a certificate still enabled for a service (IIS, POP, IMAP, or SMTP for the default SMTP certificate).
+Changing `thumbprint` on a single certificate resource does not work: Terraform would remove the old certificate before it imports the new one, and the provider refuses to remove a certificate still enabled for IIS, POP or IMAP, or that is the default SMTP certificate of the server.
 
 ## Limitations
 

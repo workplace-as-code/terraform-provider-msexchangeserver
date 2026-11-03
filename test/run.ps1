@@ -109,11 +109,10 @@ $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_vir
     "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service",
     "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
 # Adopted objects whose settings the update phase changes: applied again with
-# phase=create to put back their original values. restore=true enables POP, IMAP
-# and SMTP on the certificates that had them before the test.
+# phase=create to put back their original values. restore=true enables POP and
+# IMAP on the certificate that had them before the test.
 $RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test",
-    "-target=msexchangeserver_exchange_certificate_services.original",
-    "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
+    "-target=msexchangeserver_exchange_certificate_services.original", "-var", "restore=true")
 $restorePending = $false
 # Resource types listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbox_policy",
@@ -244,12 +243,10 @@ try {
     Write-Step "Test certificate"
     # Self-signed, made once per account and reused while it stays valid: a
     # certificate left on the server by an interrupted run then has the
-    # thumbprint of the next run, whose pre-cleanup removes it. Its key is in a
-    # CryptoAPI provider: Exchange refuses a CNG key, the default of
-    # New-SelfSignedCertificate, for the default SMTP certificate.
+    # thumbprint of the next run, whose pre-cleanup removes it.
     $certDir = Join-Path $env:LOCALAPPDATA "msexchangeserver-test"
-    $pfxPath = Join-Path $certDir "tf-ci-cert-capi.pfx"
-    $pfxPasswordPath = Join-Path $certDir "tf-ci-cert-capi.txt"
+    $pfxPath = Join-Path $certDir "tf-ci-cert.pfx"
+    $pfxPasswordPath = Join-Path $certDir "tf-ci-cert.txt"
     $pfxData = $null
     if ((Test-Path -LiteralPath $pfxPath) -and (Test-Path -LiteralPath $pfxPasswordPath)) {
         $pfxPassword = (Get-Content -Raw -LiteralPath $pfxPasswordPath).Trim()
@@ -260,8 +257,7 @@ try {
         New-Item -ItemType Directory -Force -Path $certDir | Out-Null
         $pfxPassword = [guid]::NewGuid().ToString()
         $selfSigned = New-SelfSignedCertificate -Subject "CN=tf-ci-cert.example" -DnsName "tf-ci-cert.example" `
-            -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(1) `
-            -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeySpec KeyExchange
+            -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(1)
         try {
             Export-PfxCertificate -Cert $selfSigned -FilePath $pfxPath -Password (ConvertTo-SecureString $pfxPassword -AsPlainText -Force) | Out-Null
         } finally {
@@ -323,8 +319,8 @@ try {
     }) | Select-Object -First 1
     if ($null -eq $original) { Stop-Test "No certificate of $Server is enabled for POP and IMAP besides the test one: enable them on its certificate first" }
     Write-Pass "Certificate for POP and IMAP: $($original.Thumbprint) ($($original.Subject))"
-    # The default SMTP certificate, which the update phase replaces with the
-    # test one.
+    # The default SMTP certificate, for the log: enabling SMTP on the test
+    # certificate must not replace it (data_sources.tf checks it).
     $originalSmtp = [string](@($transport | Where-Object { "$($_.Name)" -eq ($Server -split '\.')[0] }) | Select-Object -First 1).InternalTransportCertificateThumbprint
     if (-not $originalSmtp -or $originalSmtp -eq $testCertificate) { Stop-Test "No default SMTP certificate found for $Server besides the test one: enable SMTP on its certificate first" }
     Write-Pass "Default SMTP certificate: $originalSmtp"
@@ -370,7 +366,6 @@ try {
     $env:TF_VAR_test_pfx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfxPath))
     $env:TF_VAR_test_pfx_password = $pfxPassword
     $env:TF_VAR_original_certificate = "$($original.Thumbprint)"
-    $env:TF_VAR_original_smtp_certificate = $originalSmtp
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"
@@ -479,10 +474,9 @@ try {
     Write-Step "terraform destroy"
     # Adopted objects stay: put back what the update phase changed first.
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the adopted objects"
-    Assert-NoChanges "OAB external URL, database retention and POP/IMAP/SMTP certificates restored" $RestoreTargets
+    Assert-NoChanges "OAB external URL, database retention and POP/IMAP certificate restored" $RestoreTargets
     $restorePending = $false
-    foreach ($address in @($Keep) + $Adopted + "msexchangeserver_exchange_certificate_services.original[0]" +
-            "msexchangeserver_exchange_certificate_services.original_smtp[0]") { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
+    foreach ($address in @($Keep) + $Adopted + "msexchangeserver_exchange_certificate_services.original[0]") { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"
     Write-Pass "Destroy"
@@ -505,7 +499,7 @@ try {
 } finally {
     if ($restorePending) {
         Write-Host ""
-        Write-Host "Putting back the original OAB external URL, database retention and POP/IMAP/SMTP certificates..." -ForegroundColor Yellow
+        Write-Host "Putting back the original OAB external URL, database retention and POP/IMAP certificate..." -ForegroundColor Yellow
         $r = Invoke-Tf apply -auto-approve -no-color @RestoreTargets
         if ($r.Code -ne 0) {
             Write-Host "  WARN Could not put them back: apply test\main.tf with phase=create and the targets of `$RestoreTargets" -ForegroundColor Red

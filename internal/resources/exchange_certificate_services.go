@@ -22,8 +22,9 @@ import (
 // The services of a certificate are only ever added: Exchange has no command
 // to take a service away from a certificate, only to enable it on another
 // one. The state holds the configured services that the certificate carries,
-// not all of them. SMTP means the default SMTP certificate of the server
-// (exchange_certificate.ps1): Exchange shows SMTP on other certificates too.
+// not all of them: Exchange also marks certificates for SMTP on its own.
+// Enabling SMTP never replaces the default SMTP certificate of the server
+// (exchange_certificate.ps1 answers No to Exchange's question).
 
 var (
 	_ resource.Resource                = &exchangeCertificateServicesResource{}
@@ -73,8 +74,8 @@ func (r *exchangeCertificateServicesResource) Schema(_ context.Context, _ resour
 					setvalidator.ValueStringsAre(stringvalidator.OneOf(certificateServices...)),
 				},
 				MarkdownDescription: "The services to enable the certificate for: `IIS`, `SMTP`, `IMAP`, `POP`. " +
-					"`SMTP` makes the certificate the default SMTP certificate of the server (the internal transport certificate), " +
-					"replacing the previous one without asking. " +
+					"`SMTP` enables the certificate for SMTP without making it the default SMTP certificate of the server: " +
+					"the provider answers No when Exchange asks whether to replace it. " +
 					"Services that the certificate carries but that are not listed here are left as they are.",
 			},
 		},

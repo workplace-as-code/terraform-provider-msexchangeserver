@@ -60,13 +60,8 @@ variable "original_certificate" {
   type        = string
 }
 
-variable "original_smtp_certificate" {
-  description = "Thumbprint of the default SMTP certificate of exchange_server before the test. Set by run.ps1."
-  type        = string
-}
-
 variable "restore" {
-  description = "Set to true by run.ps1 to enable POP, IMAP and SMTP on the original certificates again."
+  description = "Set to true by run.ps1 to enable POP and IMAP on original_certificate again."
   type        = bool
   default     = false
 }
@@ -305,12 +300,13 @@ resource "msexchangeserver_receive_connector" "test" {
 
 # ---------------------------------------------------------------------------
 # Certificates: a self-signed certificate made by run.ps1, imported from its
-# PFX and enabled for POP, then for IMAP and SMTP in the update phase: it
-# becomes the default SMTP certificate of the server, which Exchange asks to
-# confirm. IIS is left alone. Before the destroy, run.ps1 applies with
-# restore=true to enable the services on the original certificates again:
-# Exchange cannot take a service away from a certificate, and the provider does
-# not remove a certificate still enabled for one.
+# PFX and enabled for POP, then for IMAP and SMTP in the update phase. SMTP
+# makes Exchange ask whether to replace the default SMTP certificate of the
+# server: the provider answers No, which the data source checks. IIS is left
+# alone. Before the destroy, run.ps1 applies with restore=true to enable POP
+# and IMAP on the original certificate again: Exchange cannot take a service
+# away from a certificate, and the provider does not remove a certificate
+# still enabled for one.
 # ---------------------------------------------------------------------------
 
 resource "msexchangeserver_exchange_certificate" "test" {
@@ -332,11 +328,4 @@ resource "msexchangeserver_exchange_certificate_services" "original" {
   server     = var.exchange_server
   thumbprint = var.original_certificate
   services   = ["POP", "IMAP"]
-}
-
-resource "msexchangeserver_exchange_certificate_services" "original_smtp" {
-  count      = var.restore ? 1 : 0
-  server     = var.exchange_server
-  thumbprint = var.original_smtp_certificate
-  services   = ["SMTP"]
 }

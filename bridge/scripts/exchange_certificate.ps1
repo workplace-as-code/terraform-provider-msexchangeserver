@@ -8,11 +8,10 @@
 #   -Services      EnableServices: "IIS,SMTP"; only the services the
 #                  certificate does not carry yet are enabled
 #
-# SMTP: the services of Get-ExchangeCertificate show SMTP on several
-# certificates (Exchange adds it on its own), but only one is the default
-# SMTP certificate of the server, which TLS uses: the internal transport
-# certificate of Get-TransportService. A certificate "carries" SMTP only when it
-# is that one.
+# SMTP enables the certificate for SMTP without making it the default SMTP
+# certificate of the server (the internal transport certificate of
+# Get-TransportService): Exchange asks whether to replace it, and the bridge
+# answers No (answer_no.ps1).
 #
 # Output: the certificate as JSON; Get on a missing certificate gives an empty
 # stdout.
@@ -37,6 +36,7 @@ $ErrorActionPreference = "Stop"
 
 . "$PSScriptRoot/auth.ps1" -Server $Server -Username $Username -Password $Password
 . "$PSScriptRoot/common.ps1"
+. "$PSScriptRoot/answer_no.ps1"
 
 # $Server is the connection parameter of auth.ps1: the server that holds the
 # certificate gets its own name.
@@ -47,8 +47,9 @@ if ($certServer -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$' -or $thumbprint -notmatc
     exit 1
 }
 
-# Services that a removal would break: Exchange removes the certificate anyway.
-$BoundServices = @("IIS", "POP", "IMAP", "SMTP")
+# Services that a removal would break: Exchange removes the certificate anyway,
+# as it removes the default SMTP certificate.
+$BoundServices = @("IIS", "POP", "IMAP")
 
 # A deserialized enum gives its number in a string ("$x" is "27"), its names
 # through [string] ("IMAP, POP, IIS, SMTP").
@@ -61,13 +62,6 @@ function Get-BridgeServices($Certificate) {
 function Test-BridgeDefaultSmtp {
     $service = Get-TransportService -Identity $certServer -ErrorAction Stop
     [string](Get-BridgeProp $service "InternalTransportCertificateThumbprint" "") -eq $thumbprint
-}
-
-# Get-BridgeEnabledServices returns the services the certificate carries, with
-# SMTP only for the default SMTP certificate.
-function Get-BridgeEnabledServices($Certificate, [bool]$DefaultSmtp) {
-    @(Get-BridgeServices $Certificate | Where-Object { $_ -ne "SMTP" })
-    if ($DefaultSmtp) { "SMTP" }
 }
 
 function ConvertTo-BridgeDate($Value) {
@@ -108,7 +102,6 @@ function Read-BridgeCertificate {
 }
 
 function ConvertTo-BridgeCertificate($Certificate) {
-    $defaultSmtp = Test-BridgeDefaultSmtp
     @{
         Identity             = "$certServer\$($Certificate.Thumbprint)"
         Thumbprint           = [string]$Certificate.Thumbprint
@@ -122,7 +115,8 @@ function ConvertTo-BridgeCertificate($Certificate) {
         IsSelfSigned         = [bool](Get-BridgeProp $Certificate "IsSelfSigned" $false)
         HasPrivateKey        = [bool](Get-BridgeProp $Certificate "HasPrivateKey" $false)
         PrivateKeyExportable = [bool](Get-BridgeProp $Certificate "PrivateKeyExportable" $false)
-        Services             = @(Get-BridgeEnabledServices $Certificate $defaultSmtp)
+        Services             = @(Get-BridgeServices $Certificate)
+        DefaultSmtp          = Test-BridgeDefaultSmtp
     } | ConvertTo-Json -Compress
 }
 
@@ -169,13 +163,14 @@ try {
         "EnableServices" {
             $cert = Get-BridgeCertificate
             if ($null -eq $cert) { throw "The certificate $thumbprint does not exist on $certServer." }
-            $current = @(Get-BridgeEnabledServices $cert (Test-BridgeDefaultSmtp))
+            $current = @(Get-BridgeServices $cert)
             $missing = @(ConvertFrom-BridgeCsv $Services | Where-Object { $current -notcontains $_ })
+            foreach ($service in $missing) {
+                if (@("IIS", "SMTP", "IMAP", "POP") -notcontains $service) { throw "Unsupported service '$service'" }
+            }
             if ($missing.Count -gt 0) {
-                # -Force: enabling SMTP asks whether to replace the default SMTP
-                # certificate (on Mailbox and Edge servers), which fails in a
-                # non-interactive session. -Confirm:$false does not answer it.
-                Enable-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -Services ($missing -join ",") -Force
+                # Never -Force, which would replace the default SMTP certificate.
+                Invoke-BridgeAnsweringNo "Enable-ExchangeCertificate -Server '$certServer' -Thumbprint '$thumbprint' -Services '$($missing -join ",")'" $Server $Username | Out-Null
                 $cert = Read-BridgeCertificate
             }
             ConvertTo-BridgeCertificate $cert
@@ -184,7 +179,8 @@ try {
         "Delete" {
             $cert = Get-BridgeCertificate
             if ($null -ne $cert) {
-                $inUse = @(Get-BridgeEnabledServices $cert (Test-BridgeDefaultSmtp) | Where-Object { $BoundServices -contains $_ })
+                $inUse = @(Get-BridgeServices $cert | Where-Object { $BoundServices -contains $_ })
+                if (Test-BridgeDefaultSmtp) { $inUse += "SMTP (default SMTP certificate of the server)" }
                 if ($inUse.Count -gt 0) {
                     throw "The certificate $thumbprint is still enabled for $($inUse -join ', ') on $certServer. Enable these services on another certificate first."
                 }

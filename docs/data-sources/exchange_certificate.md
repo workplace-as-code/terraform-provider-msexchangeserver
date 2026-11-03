@@ -34,6 +34,7 @@ output "mail_certificate_expires" {
 ### Read-Only
 
 - `certificate_domains` (List of String) The domains of the certificate: its subject and subject alternative names.
+- `default_smtp_certificate` (Boolean) Whether the certificate is the default SMTP certificate of the server, the internal transport certificate that encrypts SMTP between Exchange servers and that EdgeSync uses.
 - `friendly_name` (String) The friendly name of the certificate on the server.
 - `has_private_key` (Boolean) Whether the server has the private key of the certificate.
 - `id` (String) The identity of the certificate, `<server>\<thumbprint>`.
@@ -42,7 +43,7 @@ output "mail_certificate_expires" {
 - `not_before` (String) The start of the validity period, in UTC (RFC 3339).
 - `private_key_exportable` (Boolean) Whether the private key can be exported from the server.
 - `self_signed` (Boolean) Whether the certificate is self-signed.
-- `services` (List of String) The services the certificate is enabled for: `IIS`, `IMAP`, `POP`, and `SMTP` when it is the default SMTP certificate of the server. Empty when it has none.
+- `services` (List of String) The services the certificate is enabled for, for example `IIS` and `SMTP`. Empty when it has none.
 - `status` (String) The status Exchange reports, for example `Valid`, `Invalid` or `RevocationCheckFailure`.
 - `subject` (String) The subject of the certificate, for example `CN=mail.contoso.com`.
 

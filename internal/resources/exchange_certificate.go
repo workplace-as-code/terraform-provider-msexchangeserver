@@ -91,6 +91,7 @@ type certificateAPIResponse struct {
 	HasPrivateKey        bool            `json:"HasPrivateKey"`
 	PrivateKeyExportable bool            `json:"PrivateKeyExportable"`
 	Services             FlexStringSlice `json:"Services"`
+	DefaultSmtp          bool            `json:"DefaultSmtp"`
 }
 
 // runCertificateScript runs exchange_certificate.ps1 and parses the
