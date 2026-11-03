@@ -33,6 +33,17 @@
 .PARAMETER RoleGroupName
     Name of the role group to create.
 
+.PARAMETER CustomRolePrefix
+    Prefix of the custom role names, followed by the name of each role in
+    $CustomRoles (for example CR-EXCH-TF- gives CR-EXCH-TF-Certificates).
+    Without it, the custom roles are named "<RoleGroupName> <name>".
+
+.PARAMETER CustomRoleNames
+    Name of each custom role, by its name in $CustomRoles, for naming
+    conventions: @{ Certificates = "CR-EXCH-TF-CERT"; Databases = "CR-EXCH-TF-DB" }.
+    It takes precedence over -CustomRolePrefix; the roles it does not list use
+    the prefix.
+
 .PARAMETER Apply
     Create the role group, or add the missing roles to it, and add the
     accounts. Without it, the script only shows what it would do.
@@ -40,7 +51,8 @@
 .PARAMETER RemoveExtraRoles
     With -Apply, also remove from an existing role group the roles that are
     not in $ProviderRoles nor $CustomRoles. Without it, the script only lists
-    them.
+    them. A custom role that this script created and that nothing else is
+    assigned is then deleted: after a rename, the old roles go away.
 
 .EXAMPLE
     .\new_role_group.ps1
@@ -49,12 +61,19 @@
 
 .EXAMPLE
     .\new_role_group.ps1 -Member CONTOSO\svc-tf-exch-write -ReadMember CONTOSO\svc-tf-exch-read -Apply
+
+.EXAMPLE
+    .\new_role_group.ps1 -RoleGroupName RG-EXCH-TERRAFORM -CustomRolePrefix CR-EXCH-TF- -CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }
+
+    Checks the roles with the naming convention of the organization.
 #>
 [CmdletBinding()]
 param(
     [string]$Member = "",
     [string]$ReadMember = "",
     [string]$RoleGroupName = "terraform-msexchangeserver",
+    [string]$CustomRolePrefix = "",
+    [hashtable]$CustomRoleNames = @{},
     [switch]$Apply,
     [switch]$RemoveExtraRoles
 )
@@ -137,7 +156,19 @@ $CustomRoles = @(
         "Remove-ExchangeCertificate"
     ) }
 )
-foreach ($custom in $CustomRoles) { $custom.Role = "$RoleGroupName $($custom.Name)" }
+# The name of each custom role in the organization: -CustomRoleNames, then
+# -CustomRolePrefix, then "<RoleGroupName> <name>".
+$unknownNames = @($CustomRoleNames.Keys | Where-Object { @($CustomRoles | ForEach-Object { $_.Name }) -notcontains $_ })
+if ($unknownNames.Count -gt 0) {
+    throw "-CustomRoleNames: unknown custom roles $($unknownNames -join ', '). Valid names: $(($CustomRoles | ForEach-Object { $_.Name }) -join ', ')."
+}
+foreach ($custom in $CustomRoles) {
+    $custom.Role = if ($CustomRoleNames.ContainsKey($custom.Name)) { [string]$CustomRoleNames[$custom.Name] }
+                   elseif ($CustomRolePrefix) { "$CustomRolePrefix$($custom.Name)" }
+                   else { "$RoleGroupName $($custom.Name)" }
+}
+$duplicates = @($CustomRoles | Group-Object { $_.Role } | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+if ($duplicates.Count -gt 0) { throw "Several custom roles would have the same name: $($duplicates -join ', ')." }
 
 # The built-in role group of the read account.
 $ReadRoleGroup = "View-Only Organization Management"
@@ -297,6 +328,10 @@ foreach ($custom in $CustomRoles) {
     }
 }
 
+# The description of the custom roles: it marks the roles this script created,
+# which -RemoveExtraRoles may delete.
+$CustomRoleDescription = "for the workplace-as-code/msexchangeserver Terraform provider"
+
 # Roles of an existing role group that are not in the list.
 $extra = @()
 if (Get-RoleGroup -Identity $RoleGroupName -ErrorAction SilentlyContinue) {
@@ -322,7 +357,7 @@ if (-not $Member) {
 # child role starts with every entry of its parent: the unneeded ones are removed.
 foreach ($custom in $CustomRoles) {
     if (-not $custom.Exists) {
-        New-ManagementRole -Name $custom.Role -Parent $custom.Parent -Description "Cmdlets of $($custom.Parent) for the workplace-as-code/msexchangeserver Terraform provider" | Out-Null
+        New-ManagementRole -Name $custom.Role -Parent $custom.Parent -Description "Cmdlets of $($custom.Parent) $CustomRoleDescription" | Out-Null
         Write-Host "Created the custom role '$($custom.Role)'."
         $custom.ToRemove = @(Get-ManagementRoleEntry "$($custom.Role)\*" | ForEach-Object { [string]$_.Name } | Where-Object { $custom.Cmdlets -notcontains $_ })
         $custom.ToAdd = @()
@@ -350,6 +385,14 @@ if (Get-RoleGroup -Identity $RoleGroupName -ErrorAction SilentlyContinue) {
                 Where-Object { $_.RoleAssigneeName -eq $RoleGroupName } |
                 Remove-ManagementRoleAssignment -Confirm:$false
             Write-Host "Removed role '$role' from '$RoleGroupName'."
+            # A custom role of this script that nothing else uses, such as the
+            # old name of a renamed role.
+            $old = Get-ManagementRole -Identity $role
+            if (-not $old.IsRootRole -and "$($old.Description)" -like "*$CustomRoleDescription" -and
+                @(Get-ManagementRoleAssignment -Role $role -Delegating:$false).Count -eq 0) {
+                Remove-ManagementRole -Identity $role -Confirm:$false
+                Write-Host "Deleted the custom role '$role'."
+            }
         }
     }
 } else {

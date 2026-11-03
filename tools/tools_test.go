@@ -207,6 +207,36 @@ $none = Find-UncoveredCmdlets -RolesByCmdlet $byCmdlet -Roles @("Transport Rules
 	}
 }
 
+func TestCustomRoleNames(t *testing.T) {
+	if _, err := exec.LookPath("pwsh"); err != nil {
+		t.Skip("pwsh not installed")
+	}
+	run := func(args string) (string, error) {
+		script := `
+$env:MSEXCHANGESERVER_ROLEGROUP_NO_RUN = "1"
+. ./` + roleGroupScript + ` ` + args + `
+($CustomRoles | ForEach-Object { "$($_.Name)=$($_.Role)" }) -join "|"
+`
+		out, err := exec.Command("pwsh", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+
+	out, err := run(`-RoleGroupName RG-TF`)
+	if err != nil || !strings.Contains(out, "Certificates=RG-TF Certificates") {
+		t.Errorf("default names: %v %s", err, out)
+	}
+	out, err = run(`-CustomRolePrefix CR-TF- -CustomRoleNames @{ Certificates = "CR-CERT" }`)
+	if err != nil || !strings.Contains(out, "Certificates=CR-CERT") || !strings.Contains(out, "Databases=CR-TF-Databases") {
+		t.Errorf("prefix and names: %v %s", err, out)
+	}
+	if out, err = run(`-CustomRoleNames @{ Certificate = "CR-CERT" }`); err == nil {
+		t.Errorf("an unknown custom role name must fail: %s", out)
+	}
+	if out, err = run(`-CustomRoleNames @{ Certificates = "CR-X"; Databases = "CR-X" }`); err == nil {
+		t.Errorf("two custom roles with the same name must fail: %s", out)
+	}
+}
+
 // TestGuideListsTheProviderRoles keeps the role list of the authentication
 // guide in line with $ProviderRoles, so that the docs say exactly what the
 // role group grants.

@@ -49,6 +49,8 @@ When a built-in role grants much more than the provider needs, the script create
 | `terraform-msexchangeserver Databases` | **Databases** | `Get-` and `Set-MailboxDatabase` | Mount, dismount, move and remove databases |
 | `terraform-msexchangeserver Certificates` | **Exchange Server Certificates** | `Get-`, `Import-`, `Enable-` and `Remove-ExchangeCertificate` | Export private keys |
 
+The names above are the defaults, `<role group> <name>`. For a naming convention, `-RoleGroupName` names the role group, `-CustomRolePrefix` replaces the prefix of the custom roles (`-CustomRolePrefix CR-EXCH-TF-` gives `CR-EXCH-TF-Certificates`), and `-CustomRoleNames` names each custom role (`-CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }`). The provider does not depend on these names. After a rename, `-Apply -RemoveExtraRoles` deletes the old custom roles.
+
 A read-only account (for `terraform plan`) needs no new role group: the built-in **View-Only Organization Management** role group contains every cmdlet the provider reads with.
 
 The script first checks with Exchange that these roles contain every cmdlet of the provider, and stops if one is missing. Run it in the Exchange Management Shell as a member of Organization Management:
