@@ -27,7 +27,8 @@
 
 .PARAMETER Username
     Local administrator of the Edge server, as EDGE01\Administrator. Needed
-    with -Server; the password is asked for.
+    with -Server; the password is asked for, or read from EXCHANGE_PASSWORD
+    when that variable is set (unattended runs).
 
 .PARAMETER ProviderPath
     Path of terraform-provider-msexchangeserver.exe. Defaults to the file in
@@ -56,11 +57,8 @@ $Log = Join-Path $PSScriptRoot "run-edge-$stamp.log"
 $Mode = if ($Server) { "remote" } else { "local" }
 
 # Objects created by the test, as resource address = import ID.
-$EdgeName = if ($Server) { (($Server -split '\.')[0]).ToUpper() } else { $env:COMPUTERNAME.ToUpper() }
-$Created = [ordered]@{
-    "msexchangeserver_transport_rule.test"     = "TF-CI-EdgeRule"
-    "msexchangeserver_receive_connector.test" = "$EdgeName\TF-CI-EdgeReceive"
-}
+# The receive connector is added once connected: its ID holds the Edge server name.
+$Created = [ordered]@{ "msexchangeserver_transport_rule.test" = "TF-CI-EdgeRule" }
 # Imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_transport_config.this")
 # Resource types available on Edge, listed by terraform query.
@@ -187,7 +185,13 @@ try {
         $edgeName = $env:COMPUTERNAME
     } else {
         Write-Step "WinRM connection to $Server (Negotiate, local account)"
-        $cred = Get-Credential -UserName $Username -Message "Local administrator of the Edge server"
+        if ($env:EXCHANGE_PASSWORD) {
+            # Unattended runs (lab automation) give the password in the environment.
+            $secure = ConvertTo-SecureString $env:EXCHANGE_PASSWORD -AsPlainText -Force
+            $cred = New-Object System.Management.Automation.PSCredential($Username, $secure)
+        } else {
+            $cred = Get-Credential -UserName $Username -Message "Local administrator of the Edge server"
+        }
         if ($null -eq $cred) { Stop-Test "No credential given" }
         try {
             $session = New-PSSession -ComputerName $Server -Credential $cred -Authentication Negotiate
@@ -236,7 +240,9 @@ try {
     $env:TF_IN_AUTOMATION   = "1"
     $env:CHECKPOINT_DISABLE = "1"
     $env:EXCHANGE_ROLE      = "Edge"
-    $env:TF_VAR_edge_server = $EdgeName
+    $edgeName = "$edgeName".ToUpper()
+    $Created["msexchangeserver_receive_connector.test"] = "$edgeName\TF-CI-EdgeReceive"
+    $env:TF_VAR_edge_server = $edgeName
     if ($Mode -eq "remote") {
         $env:EXCHANGE_SERVER   = $Server
         $env:EXCHANGE_USERNAME = $Username
