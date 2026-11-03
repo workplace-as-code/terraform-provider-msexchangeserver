@@ -313,7 +313,8 @@ try {
     # The certificate enabled for POP and IMAP, which the test moves to its own
     # certificate and back.
     $original = @($certificates | Where-Object {
-        "$($_.Services)" -match 'POP' -and "$($_.Services)" -match 'IMAP' -and "$($_.Thumbprint)" -ne $testCertificate
+        # [string]: "$x" gives the number of a deserialized enum, not its names
+        [string]$_.Services -match 'POP' -and [string]$_.Services -match 'IMAP' -and "$($_.Thumbprint)" -ne $testCertificate
     }) | Select-Object -First 1
     if ($null -eq $original) { Stop-Test "No certificate of $Server is enabled for POP and IMAP besides the test one: enable them on its certificate first" }
     Write-Pass "Certificate for POP and IMAP: $($original.Thumbprint) ($($original.Subject))"

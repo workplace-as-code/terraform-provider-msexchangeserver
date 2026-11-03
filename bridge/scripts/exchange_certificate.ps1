@@ -46,8 +46,10 @@ if ($certServer -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$' -or $thumbprint -notmatc
 # never takes it away.
 $BoundServices = @("IIS", "POP", "IMAP")
 
+# A deserialized enum gives its number in a string ("$x" is "27"), its names
+# through [string] ("IMAP, POP, IIS, SMTP").
 function Get-BridgeServices($Certificate) {
-    @("$(Get-BridgeProp $Certificate 'Services' '')" -split ',' |
+    @([string](Get-BridgeProp $Certificate 'Services' '') -split ',' |
         ForEach-Object { $_.Trim() } |
         Where-Object { $_ -and $_ -ne "None" })
 }
