@@ -16,11 +16,12 @@ import (
 const roleGroupScript = "new_role_group.ps1"
 
 var (
-	cmdletRe    = regexp.MustCompile(`\b(?:Get|Set|New|Remove|Enable|Disable)-[A-Z][A-Za-z]+`)
-	functionRe  = regexp.MustCompile(`(?m)^\s*function\s+([A-Za-z]+-[A-Za-z]+)`)
-	listRe      = regexp.MustCompile(`(?s)\$ProviderCmdlets = @\((.*?)\n\)`)
-	rolesRe     = regexp.MustCompile(`(?s)\$ProviderRoles = @\((.*?)\n\)`)
-	retentionRe = regexp.MustCompile(`(?s)\$RetentionCmdlets = @\((.*?)\n\)`)
+	cmdletRe   = regexp.MustCompile(`\b(?:Get|Set|New|Remove|Enable|Disable)-[A-Z][A-Za-z]+`)
+	functionRe = regexp.MustCompile(`(?m)^\s*function\s+([A-Za-z]+-[A-Za-z]+)`)
+	listRe     = regexp.MustCompile(`(?s)\$ProviderCmdlets = @\((.*?)\n\)`)
+	rolesRe    = regexp.MustCompile(`(?s)\$ProviderRoles = @\((.*?)\n\)`)
+	// customRoleRe matches one entry of $CustomRoles: name, parent, cmdlets.
+	customRoleRe = regexp.MustCompile(`(?s)@\{ Name = "([^"]+)"; Parent = "([^"]+)"; Cmdlets = @\((.*?)\) \}`)
 	// guideRoleRe matches the role list of the authentication guide: one
 	// "- **Role**" item per role, alone on its line.
 	guideRoleRe = regexp.MustCompile(`(?m)^- \*\*([^*]+)\*\*$`)
@@ -180,21 +181,41 @@ func TestGuideListsTheProviderRoles(t *testing.T) {
 	}
 }
 
-// TestRetentionRoleKeepsTheRetentionCmdlets checks the custom retention role:
-// it keeps exactly the retention cmdlets of the bridge, Get-Mailbox and
-// Set-ADServerSettings, so a new retention cmdlet in a script cannot be
-// forgotten.
-func TestRetentionRoleKeepsTheRetentionCmdlets(t *testing.T) {
-	kept := quotedList(t, retentionRe, "$RetentionCmdlets")
-	want := []string{"Get-Mailbox", "Set-ADServerSettings"}
-	for _, c := range bridgeCmdlets(t) {
-		if strings.Contains(c, "-Retention") {
-			want = append(want, c)
-		}
+// TestCustomRolesKeepTheBridgeCmdlets checks each custom role of $CustomRoles:
+// for every noun of its list that the bridge runs, the role keeps exactly the
+// cmdlets the bridge runs on that noun. A new cmdlet in a script cannot be
+// forgotten, and the role never keeps more than needed. Nouns the bridge does
+// not run yet are skipped: the roles of a release are granted before its
+// resources are written.
+func TestCustomRolesKeepTheBridgeCmdlets(t *testing.T) {
+	script, err := os.ReadFile(roleGroupScript)
+	if err != nil {
+		t.Fatal(err)
 	}
-	sort.Strings(kept)
-	sort.Strings(want)
-	if strings.Join(kept, ",") != strings.Join(want, ",") {
-		t.Errorf("$RetentionCmdlets is %v, the bridge runs %v", kept, want)
+	roles := customRoleRe.FindAllStringSubmatch(string(script), -1)
+	if len(roles) == 0 {
+		t.Fatal("$CustomRoles entries not found")
+	}
+	bridgeByNoun := map[string][]string{}
+	for _, c := range bridgeCmdlets(t) {
+		noun := c[strings.Index(c, "-")+1:]
+		bridgeByNoun[noun] = append(bridgeByNoun[noun], c)
+	}
+	for _, role := range roles {
+		keptByNoun := map[string][]string{}
+		for _, m := range quotedRe.FindAllStringSubmatch(role[3], -1) {
+			noun := m[1][strings.Index(m[1], "-")+1:]
+			keptByNoun[noun] = append(keptByNoun[noun], m[1])
+		}
+		for noun, kept := range keptByNoun {
+			want, ok := bridgeByNoun[noun]
+			if !ok {
+				continue
+			}
+			sort.Strings(kept)
+			if strings.Join(kept, ",") != strings.Join(want, ",") {
+				t.Errorf("custom role %q keeps %v, the bridge runs %v", role[1], kept, want)
+			}
+		}
 	}
 }
