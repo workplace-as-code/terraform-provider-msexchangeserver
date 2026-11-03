@@ -15,6 +15,12 @@ variable "default_domain" {
   type        = string
 }
 
+variable "test_remote_mailbox" {
+  description = "Identity of an existing remote mailbox, read by the data source. Set by run.ps1; empty skips it."
+  type        = string
+  default     = ""
+}
+
 variable "phase" {
   description = "Set to \"update\" by run.ps1 to change one or more attributes of every resource in place."
   type        = string
@@ -42,6 +48,18 @@ data "msexchangeserver_accepted_domain" "default" {
 data "msexchangeserver_accepted_domains" "all" {}
 
 data "msexchangeserver_organization_config" "org" {}
+
+data "msexchangeserver_remote_mailbox" "test" {
+  count    = var.test_remote_mailbox != "" ? 1 : 0
+  identity = var.test_remote_mailbox
+
+  lifecycle {
+    postcondition {
+      condition     = self.recipient_type_details != "" && self.remote_routing_address != ""
+      error_message = "The remote mailbox was read without its type or remote routing address."
+    }
+  }
+}
 
 # ---------------------------------------------------------------------------
 # Organization-wide objects: imported, never modified. run.ps1 removes them

@@ -53,6 +53,11 @@
 .PARAMETER DebugLog
     Also writes Terraform's debug log (TF_LOG=DEBUG) next to the log file.
 
+.PARAMETER RemoteMailbox
+    Identity of an existing remote mailbox (New-RemoteMailbox or
+    Enable-RemoteMailbox), read by the remote mailbox data source. Without it,
+    that data source is skipped.
+
 .EXAMPLE
     .\run.ps1 -Server exch01.contoso.local -Username CONTOSO\administrator -Step check
 
@@ -73,7 +78,8 @@ param(
     [ValidateSet("check", "all")] [string]$Step = "all",
     [string]$ProviderPath = (Join-Path $PSScriptRoot "terraform-provider-msexchangeserver.exe"),
     [switch]$OneShot,
-    [switch]$DebugLog
+    [switch]$DebugLog,
+    [string]$RemoteMailbox = ""
 )
 
 Set-StrictMode -Version Latest
@@ -279,6 +285,7 @@ try {
         $env:EXCHANGE_PASSWORD    = $cred.GetNetworkCredential().Password
     }
     $env:TF_VAR_default_domain = "$($default.Name)"
+    $env:TF_VAR_test_remote_mailbox = $RemoteMailbox
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"

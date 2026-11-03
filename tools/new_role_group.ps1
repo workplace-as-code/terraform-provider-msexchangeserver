@@ -154,6 +154,7 @@ $ProviderCmdlets = @(
     "Get-OrganizationConfig",
     "Get-OwaMailboxPolicy",
     "Get-RemoteDomain",
+    "Get-RemoteMailbox",
     "Get-RetentionPolicy",
     "Get-RetentionPolicyTag",
     "Get-TransportConfig",

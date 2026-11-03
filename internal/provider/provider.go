@@ -155,6 +155,7 @@ func (p *exchangeProvider) DataSources(_ context.Context) []func() datasource.Da
 		datasources.NewAcceptedDomainsDataSource,
 		datasources.NewMailboxDataSource,
 		datasources.NewOrganizationConfigDataSource,
+		datasources.NewRemoteMailboxDataSource,
 	}
 }
 

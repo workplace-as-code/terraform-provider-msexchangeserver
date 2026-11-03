@@ -41,6 +41,7 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_accepted_domains`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/accepted_domains) |
 | [`msexchangeserver_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mailbox) |
 | [`msexchangeserver_organization_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/organization_config) |
+| [`msexchangeserver_remote_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_mailbox) |
 
 ## Singletons
 

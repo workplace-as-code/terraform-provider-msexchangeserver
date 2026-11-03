@@ -57,7 +57,7 @@ resource "msexchangeserver_remote_domain" "partner" {
 | Clients and devices | `msexchangeserver_owa_mailbox_policy`, `msexchangeserver_mobile_device_mailbox_policy` |
 | Organization | `msexchangeserver_organization_config`, `msexchangeserver_email_address_policy`, `msexchangeserver_retention_policy`, `msexchangeserver_retention_policy_tag` |
 
-Data sources: `msexchangeserver_accepted_domain`, `msexchangeserver_accepted_domains`, `msexchangeserver_mailbox`, `msexchangeserver_organization_config`.
+Data sources: `msexchangeserver_accepted_domain`, `msexchangeserver_accepted_domains`, `msexchangeserver_mailbox`, `msexchangeserver_organization_config`, `msexchangeserver_remote_mailbox`.
 
 ### Related providers
 
