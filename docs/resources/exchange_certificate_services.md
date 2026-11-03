@@ -23,7 +23,8 @@ resource "msexchangeserver_exchange_certificate_services" "mail" {
 
 ## Limitations
 
-- Enabling SMTP never replaces the default SMTP certificate of the server (the internal transport certificate, used between Exchange servers and by EdgeSync): when `Enable-ExchangeCertificate` asks whether to replace it, the provider answers No. Connectors pick the certificate by their FQDN or `tls_certificate_name`.
+- Enabling SMTP does not replace the default SMTP certificate of the server (the internal transport certificate, used between Exchange servers and by EdgeSync): when `Enable-ExchangeCertificate` asks whether to replace it, the provider answers No. Connectors pick the certificate by their FQDN or `tls_certificate_name`. Only `default_smtp_certificate = true` replaces it, and Exchange then requires a private key in a CryptoAPI provider (CSP), not CNG ("isn't a Cryptographic API certificate"). Certificates completed from an Exchange request have one; a PFX made with `New-SelfSignedCertificate` or other tools may not.
+- IIS is enabled with `-DoNotRequireSsl`: the provider does not turn on "Require SSL" on the Default Web Site, which would break an HTTP to HTTPS redirection.
 - Exchange also marks certificates for SMTP on its own, for example when they are enabled for IMAP or POP. The resource only reads the services listed in `services`, so this shows no difference; an imported resource lists them all.
 - Mailbox servers only.
 
@@ -33,8 +34,12 @@ resource "msexchangeserver_exchange_certificate_services" "mail" {
 ### Required
 
 - `server` (String) The Exchange server that holds the certificate, as a name or an FQDN. Each server has its own certificates.
-- `services` (Set of String) The services to enable the certificate for: `IIS`, `SMTP`, `IMAP`, `POP`. `SMTP` enables the certificate for SMTP without making it the default SMTP certificate of the server: the provider answers No when Exchange asks whether to replace it. Services that the certificate carries but that are not listed here are left as they are.
+- `services` (Set of String) The services to enable the certificate for: `IIS`, `SMTP`, `IMAP`, `POP`. `SMTP` enables the certificate for SMTP without making it the default SMTP certificate of the server, unless `default_smtp_certificate` is `true`: the provider answers No when Exchange asks whether to replace it. Services that the certificate carries but that are not listed here are left as they are.
 - `thumbprint` (String) The thumbprint of the certificate: 40 hexadecimal characters in upper case.
+
+### Optional
+
+- `default_smtp_certificate` (Boolean) Makes the certificate the default SMTP certificate of the server (the internal transport certificate, which encrypts SMTP between Exchange servers and which EdgeSync uses), replacing the previous one. Needs `SMTP` in `services`, and a private key in a CryptoAPI provider (CSP): Exchange refuses a CNG key for this certificate. Unset or `false`, the provider never replaces the default SMTP certificate. Exchange cannot make a certificate stop being the default: setting `false` afterwards changes nothing, make another certificate the default instead.
 
 ### Read-Only
 

@@ -7,11 +7,15 @@
 #   -PfxPassword   Import: its password ("" when it has none)
 #   -Services      EnableServices: "IIS,SMTP"; only the services the
 #                  certificate does not carry yet are enabled
+#   -MakeDefaultSmtp  EnableServices: "true" makes the certificate the default
+#                  SMTP certificate of the server
 #
 # SMTP enables the certificate for SMTP without making it the default SMTP
 # certificate of the server (the internal transport certificate of
 # Get-TransportService): Exchange asks whether to replace it, and the bridge
-# answers No (answer_no.ps1).
+# answers No (answer_no.ps1). Only -MakeDefaultSmtp replaces it (-Force).
+# IIS is enabled with -DoNotRequireSsl: otherwise Exchange turns on "Require
+# SSL" on the Default Web Site, which breaks HTTP to HTTPS redirections.
 #
 # Output: the certificate as JSON; Get on a missing certificate gives an empty
 # stdout.
@@ -28,7 +32,8 @@ param(
     [string]$PfxPassword          = "",
     [string]$FriendlyName         = "",
     [string]$PrivateKeyExportable = "",
-    [string]$Services             = ""
+    [string]$Services             = "",
+    [string]$MakeDefaultSmtp      = ""
 )
 
 Set-StrictMode -Version Latest
@@ -169,8 +174,15 @@ try {
                 if (@("IIS", "SMTP", "IMAP", "POP") -notcontains $service) { throw "Unsupported service '$service'" }
             }
             if ($missing.Count -gt 0) {
-                # Never -Force, which would replace the default SMTP certificate.
-                Invoke-BridgeAnsweringNo "Enable-ExchangeCertificate -Server '$certServer' -Thumbprint '$thumbprint' -Services '$($missing -join ",")'" $Server $Username | Out-Null
+                # Never -Force here, which would replace the default SMTP certificate.
+                $command = "Enable-ExchangeCertificate -Server '$certServer' -Thumbprint '$thumbprint' -Services '$($missing -join ",")'"
+                if ($missing -contains "IIS") { $command += " -DoNotRequireSsl" }
+                Invoke-BridgeAnsweringNo $command $Server $Username | Out-Null
+                $cert = Read-BridgeCertificate
+            }
+            if ($MakeDefaultSmtp -eq "true" -and -not (Test-BridgeDefaultSmtp)) {
+                # -Force answers Yes to "Overwrite the existing default SMTP certificate?".
+                Enable-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -Services SMTP -Force
                 $cert = Read-BridgeCertificate
             }
             ConvertTo-BridgeCertificate $cert

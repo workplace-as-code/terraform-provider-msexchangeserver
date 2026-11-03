@@ -23,12 +23,14 @@ import (
 // to take a service away from a certificate, only to enable it on another
 // one. The state holds the configured services that the certificate carries,
 // not all of them: Exchange also marks certificates for SMTP on its own.
-// Enabling SMTP never replaces the default SMTP certificate of the server
-// (exchange_certificate.ps1 answers No to Exchange's question).
+// Enabling SMTP replaces the default SMTP certificate of the server only with
+// default_smtp_certificate = true; otherwise exchange_certificate.ps1 answers
+// No to Exchange's question.
 
 var (
-	_ resource.Resource                = &exchangeCertificateServicesResource{}
-	_ resource.ResourceWithImportState = &exchangeCertificateServicesResource{}
+	_ resource.Resource                   = &exchangeCertificateServicesResource{}
+	_ resource.ResourceWithImportState    = &exchangeCertificateServicesResource{}
+	_ resource.ResourceWithValidateConfig = &exchangeCertificateServicesResource{}
 )
 
 // certificateServices are the services the resource enables.
@@ -43,6 +45,9 @@ type exchangeCertificateServicesModel struct {
 	Server     types.String `tfsdk:"server"`
 	Thumbprint types.String `tfsdk:"thumbprint"`
 	Services   types.Set    `tfsdk:"services"`
+	// DefaultSmtp is only read back when true: Exchange cannot make a
+	// certificate stop being the default, only make another one the default.
+	DefaultSmtp types.Bool `tfsdk:"default_smtp_certificate"`
 }
 
 func NewExchangeCertificateServicesResource() resource.Resource {
@@ -74,9 +79,17 @@ func (r *exchangeCertificateServicesResource) Schema(_ context.Context, _ resour
 					setvalidator.ValueStringsAre(stringvalidator.OneOf(certificateServices...)),
 				},
 				MarkdownDescription: "The services to enable the certificate for: `IIS`, `SMTP`, `IMAP`, `POP`. " +
-					"`SMTP` enables the certificate for SMTP without making it the default SMTP certificate of the server: " +
-					"the provider answers No when Exchange asks whether to replace it. " +
+					"`SMTP` enables the certificate for SMTP without making it the default SMTP certificate of the server, unless " +
+					"`default_smtp_certificate` is `true`: the provider answers No when Exchange asks whether to replace it. " +
 					"Services that the certificate carries but that are not listed here are left as they are.",
+			},
+			"default_smtp_certificate": schema.BoolAttribute{
+				Optional: true,
+				MarkdownDescription: "Makes the certificate the default SMTP certificate of the server (the internal transport certificate, " +
+					"which encrypts SMTP between Exchange servers and which EdgeSync uses), replacing the previous one. Needs `SMTP` in " +
+					"`services`, and a private key in a CryptoAPI provider (CSP): Exchange refuses a CNG key for this certificate. " +
+					"Unset or `false`, the provider never replaces the default SMTP certificate. Exchange cannot make a certificate stop " +
+					"being the default: setting `false` afterwards changes nothing, make another certificate the default instead.",
 			},
 		},
 	}
@@ -85,6 +98,20 @@ func (r *exchangeCertificateServicesResource) Schema(_ context.Context, _ resour
 func (r *exchangeCertificateServicesResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if c := clientFromProviderData(req, resp); c != nil {
 		r.client = c
+	}
+}
+
+func (r *exchangeCertificateServicesResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var cfg exchangeCertificateServicesModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() || !cfg.DefaultSmtp.ValueBool() || cfg.Services.IsUnknown() {
+		return
+	}
+	var services []string
+	resp.Diagnostics.Append(cfg.Services.ElementsAs(ctx, &services, false)...)
+	if !slices.Contains(services, "SMTP") {
+		resp.Diagnostics.AddAttributeError(path.Root("default_smtp_certificate"), "SMTP missing",
+			"default_smtp_certificate needs SMTP in services.")
 	}
 }
 
@@ -97,11 +124,15 @@ func (r *exchangeCertificateServicesResource) enable(ctx context.Context, plan e
 		return plan, diags
 	}
 	id := certificateID(plan.Server.ValueString(), plan.Thumbprint.ValueString())
-	cert, err := runCertificateScript(ctx, r.client, map[string]string{
+	params := map[string]string{
 		"Action":   "EnableServices",
 		"Identity": id,
 		"Services": strings.Join(wanted, ","),
-	})
+	}
+	if plan.DefaultSmtp.ValueBool() {
+		params["MakeDefaultSmtp"] = "true"
+	}
+	cert, err := runCertificateScript(ctx, r.client, params)
 	if err == nil && cert == nil {
 		err = fmt.Errorf("the bridge returned no certificate")
 	}
@@ -112,6 +143,11 @@ func (r *exchangeCertificateServicesResource) enable(ctx context.Context, plan e
 	if missing := missingServices(wanted, cert.Services); len(missing) > 0 {
 		diags.AddError("Services not enabled",
 			fmt.Sprintf("Exchange did not enable the certificate %s for %s.", id, strings.Join(missing, ", ")))
+		return plan, diags
+	}
+	if plan.DefaultSmtp.ValueBool() && !cert.DefaultSmtp {
+		diags.AddError("Not the default SMTP certificate",
+			fmt.Sprintf("Exchange did not make %s the default SMTP certificate of the server.", id))
 		return plan, diags
 	}
 	plan.ID = types.StringValue(id)
@@ -164,6 +200,14 @@ func (r *exchangeCertificateServicesResource) Read(ctx context.Context, req reso
 		resp.State.RemoveResource(ctx)
 		return
 	}
+	switch {
+	case state.Services.IsNull() && cert.DefaultSmtp:
+		state.DefaultSmtp = types.BoolValue(true) // imported default SMTP certificate
+	case state.DefaultSmtp.ValueBool():
+		// Another certificate became the default: the plan makes this one
+		// the default again.
+		state.DefaultSmtp = types.BoolValue(cert.DefaultSmtp)
+	}
 	state.Services = stringsToSet(kept)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
@@ -184,6 +228,11 @@ func (r *exchangeCertificateServicesResource) Update(ctx context.Context, req re
 	var wanted, before []string
 	resp.Diagnostics.Append(plan.Services.ElementsAs(ctx, &wanted, false)...)
 	resp.Diagnostics.Append(prior.Services.ElementsAs(ctx, &before, false)...)
+	if prior.DefaultSmtp.ValueBool() && !plan.DefaultSmtp.ValueBool() {
+		resp.Diagnostics.AddWarning("Still the default SMTP certificate",
+			fmt.Sprintf("The certificate %s is still the default SMTP certificate of the server: Exchange cannot make a certificate stop "+
+				"being the default. Set default_smtp_certificate on another certificate to replace it.", state.ID.ValueString()))
+	}
 	if removed := missingServices(before, wanted); len(removed) > 0 {
 		resp.Diagnostics.AddWarning("Services left enabled",
 			fmt.Sprintf("The certificate %s is still enabled for %s: Exchange cannot take a service away from a certificate. "+

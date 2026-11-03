@@ -96,8 +96,8 @@ data "msexchangeserver_exchange_certificate" "test" {
       error_message = "The data source read another certificate than the test one, or without its POP service."
     }
     postcondition {
-      condition     = !self.default_smtp_certificate
-      error_message = "Enabling SMTP replaced the default SMTP certificate of the server."
+      condition     = self.default_smtp_certificate == local.updated
+      error_message = "The test certificate is the default SMTP certificate only when default_smtp_certificate is true."
     }
   }
 }

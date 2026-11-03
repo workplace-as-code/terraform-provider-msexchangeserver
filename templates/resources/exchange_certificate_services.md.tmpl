@@ -15,7 +15,8 @@ description: |-
 
 ## Limitations
 
-- Enabling SMTP never replaces the default SMTP certificate of the server (the internal transport certificate, used between Exchange servers and by EdgeSync): when `Enable-ExchangeCertificate` asks whether to replace it, the provider answers No. Connectors pick the certificate by their FQDN or `tls_certificate_name`.
+- Enabling SMTP does not replace the default SMTP certificate of the server (the internal transport certificate, used between Exchange servers and by EdgeSync): when `Enable-ExchangeCertificate` asks whether to replace it, the provider answers No. Connectors pick the certificate by their FQDN or `tls_certificate_name`. Only `default_smtp_certificate = true` replaces it, and Exchange then requires a private key in a CryptoAPI provider (CSP), not CNG ("isn't a Cryptographic API certificate"). Certificates completed from an Exchange request have one; a PFX made with `New-SelfSignedCertificate` or other tools may not.
+- IIS is enabled with `-DoNotRequireSsl`: the provider does not turn on "Require SSL" on the Default Web Site, which would break an HTTP to HTTPS redirection.
 - Exchange also marks certificates for SMTP on its own, for example when they are enabled for IMAP or POP. The resource only reads the services listed in `services`, so this shows no difference; an imported resource lists them all.
 - Mailbox servers only.
 

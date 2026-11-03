@@ -60,8 +60,18 @@ variable "original_certificate" {
   type        = string
 }
 
+variable "original_iis_certificate" {
+  description = "Thumbprint of the certificate enabled for IIS (HTTPS) before the test. Set by run.ps1."
+  type        = string
+}
+
+variable "original_smtp_certificate" {
+  description = "Thumbprint of the default SMTP certificate before the test. Set by run.ps1."
+  type        = string
+}
+
 variable "restore" {
-  description = "Set to true by run.ps1 to enable POP and IMAP on original_certificate again."
+  description = "Set to true by run.ps1 to give IIS, POP, IMAP and the default SMTP certificate back to the original certificates."
   type        = bool
   default     = false
 }
@@ -300,13 +310,13 @@ resource "msexchangeserver_receive_connector" "test" {
 
 # ---------------------------------------------------------------------------
 # Certificates: a self-signed certificate made by run.ps1, imported from its
-# PFX and enabled for POP, then for IMAP and SMTP in the update phase. SMTP
-# makes Exchange ask whether to replace the default SMTP certificate of the
-# server: the provider answers No, which the data source checks. IIS is left
-# alone. Before the destroy, run.ps1 applies with restore=true to enable POP
-# and IMAP on the original certificate again: Exchange cannot take a service
-# away from a certificate, and the provider does not remove a certificate
-# still enabled for one.
+# PFX and enabled for POP and SMTP. SMTP makes Exchange ask whether to replace
+# the default SMTP certificate of the server: the provider answers No, which
+# the data source checks. The update phase adds IMAP and IIS (HTTPS of the
+# server) and makes it the default SMTP certificate. Before the destroy,
+# run.ps1 applies with restore=true to give the services back to the original
+# certificates: Exchange cannot take a service away from a certificate, and
+# the provider does not remove a certificate still enabled for one.
 # ---------------------------------------------------------------------------
 
 resource "msexchangeserver_exchange_certificate" "test" {
@@ -320,7 +330,9 @@ resource "msexchangeserver_exchange_certificate" "test" {
 resource "msexchangeserver_exchange_certificate_services" "test" {
   server     = msexchangeserver_exchange_certificate.test.server
   thumbprint = msexchangeserver_exchange_certificate.test.thumbprint
-  services   = local.updated ? ["POP", "IMAP", "SMTP"] : ["POP"]
+  services   = local.updated ? ["POP", "SMTP", "IMAP", "IIS"] : ["POP", "SMTP"]
+
+  default_smtp_certificate = local.updated ? true : null
 }
 
 resource "msexchangeserver_exchange_certificate_services" "original" {
@@ -328,4 +340,20 @@ resource "msexchangeserver_exchange_certificate_services" "original" {
   server     = var.exchange_server
   thumbprint = var.original_certificate
   services   = ["POP", "IMAP"]
+}
+
+resource "msexchangeserver_exchange_certificate_services" "original_iis" {
+  count      = var.restore ? 1 : 0
+  server     = var.exchange_server
+  thumbprint = var.original_iis_certificate
+  services   = ["IIS"]
+}
+
+resource "msexchangeserver_exchange_certificate_services" "original_smtp" {
+  count      = var.restore ? 1 : 0
+  server     = var.exchange_server
+  thumbprint = var.original_smtp_certificate
+  services   = ["SMTP"]
+
+  default_smtp_certificate = true
 }
