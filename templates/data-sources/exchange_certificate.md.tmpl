@@ -17,7 +17,7 @@ description: |-
 
 ## Permissions
 
-The provider's account needs `Get-ExchangeCertificate`, from the **Exchange Server Certificates** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants it. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs `Get-ExchangeCertificate`, from the **Exchange Server Certificates** management role, and `Get-TransportService`, from the **Send Connectors** role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

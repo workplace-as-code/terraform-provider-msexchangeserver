@@ -170,6 +170,7 @@ $ProviderCmdlets = @(
     "Get-SendConnector",
     "Get-TransportConfig",
     "Get-TransportRule",
+    "Get-TransportService",
     "Get-WebServicesVirtualDirectory",
     "Import-ExchangeCertificate",
     "New-AcceptedDomain",

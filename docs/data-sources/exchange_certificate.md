@@ -42,13 +42,13 @@ output "mail_certificate_expires" {
 - `not_before` (String) The start of the validity period, in UTC (RFC 3339).
 - `private_key_exportable` (Boolean) Whether the private key can be exported from the server.
 - `self_signed` (Boolean) Whether the certificate is self-signed.
-- `services` (List of String) The services the certificate is enabled for, for example `IIS` and `SMTP`. Empty when it has none.
+- `services` (List of String) The services the certificate is enabled for: `IIS`, `IMAP`, `POP`, and `SMTP` when it is the default SMTP certificate of the server. Empty when it has none.
 - `status` (String) The status Exchange reports, for example `Valid`, `Invalid` or `RevocationCheckFailure`.
 - `subject` (String) The subject of the certificate, for example `CN=mail.contoso.com`.
 
 ## Permissions
 
-The provider's account needs `Get-ExchangeCertificate`, from the **Exchange Server Certificates** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants it. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs `Get-ExchangeCertificate`, from the **Exchange Server Certificates** management role, and `Get-TransportService`, from the **Send Connectors** role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

@@ -81,9 +81,10 @@ func (d *exchangeCertificateDataSource) Schema(_ context.Context, _ datasource.S
 			"has_private_key":        boolean("Whether the server has the private key of the certificate."),
 			"private_key_exportable": boolean("Whether the private key can be exported from the server."),
 			"services": schema.ListAttribute{
-				ElementType:         types.StringType,
-				Computed:            true,
-				MarkdownDescription: "The services the certificate is enabled for, for example `IIS` and `SMTP`. Empty when it has none.",
+				ElementType: types.StringType,
+				Computed:    true,
+				MarkdownDescription: "The services the certificate is enabled for: `IIS`, `IMAP`, `POP`, and `SMTP` when it is the default SMTP " +
+					"certificate of the server. Empty when it has none.",
 			},
 		},
 	}

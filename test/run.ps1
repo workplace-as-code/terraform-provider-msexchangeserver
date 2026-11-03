@@ -109,10 +109,11 @@ $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_vir
     "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service",
     "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
 # Adopted objects whose settings the update phase changes: applied again with
-# phase=create to put back their original values. restore=true enables POP and
-# IMAP on the certificate that had them before the test.
+# phase=create to put back their original values. restore=true enables POP, IMAP
+# and SMTP on the certificates that had them before the test.
 $RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test",
-    "-target=msexchangeserver_exchange_certificate_services.original", "-var", "restore=true")
+    "-target=msexchangeserver_exchange_certificate_services.original",
+    "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
 $restorePending = $false
 # Resource types listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbox_policy",
@@ -296,6 +297,7 @@ try {
         # Selected on the server: the certificates would otherwise come back
         # as X509Certificate2 objects, without their services.
         $certificates = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Thumbprint, Services, Subject })
+        $transport = @(Invoke-Command -Session $session -ScriptBlock { Get-TransportService | Select-Object Name, InternalTransportCertificateThumbprint })
         # Only to show the version: the provider's role group has no Get-ExchangeServer.
         $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
     } finally {
@@ -318,6 +320,11 @@ try {
     }) | Select-Object -First 1
     if ($null -eq $original) { Stop-Test "No certificate of $Server is enabled for POP and IMAP besides the test one: enable them on its certificate first" }
     Write-Pass "Certificate for POP and IMAP: $($original.Thumbprint) ($($original.Subject))"
+    # The default SMTP certificate, which the update phase replaces with the
+    # test one.
+    $originalSmtp = [string](@($transport | Where-Object { "$($_.Name)" -eq ($Server -split '\.')[0] }) | Select-Object -First 1).InternalTransportCertificateThumbprint
+    if (-not $originalSmtp -or $originalSmtp -eq $testCertificate) { Stop-Test "No default SMTP certificate found for $Server besides the test one: enable SMTP on its certificate first" }
+    Write-Pass "Default SMTP certificate: $originalSmtp"
     $exchange = @($servers | Where-Object { "$($_.Fqdn)" -eq $Server }) | Select-Object -First 1
     if ($null -eq $exchange) { $exchange = $servers | Select-Object -First 1 }
     if ($null -ne $exchange) { Write-Info "Exchange server: $($exchange.Name), version $($exchange.AdminDisplayVersion)" }
@@ -360,6 +367,7 @@ try {
     $env:TF_VAR_test_pfx_base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfxPath))
     $env:TF_VAR_test_pfx_password = $pfxPassword
     $env:TF_VAR_original_certificate = "$($original.Thumbprint)"
+    $env:TF_VAR_original_smtp_certificate = $originalSmtp
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"
@@ -424,12 +432,8 @@ try {
     Write-Pass "$($Created.Count + $Adopted.Count) resources imported"
     # apply_to_recipients is a provider setting that Exchange does not store: an
     # imported policy has none, so the first apply only records it. It applies
-    # nothing, since no setting of the policy changes. An imported certificate
-    # services resource holds every service of the certificate, SMTP included,
-    # which Exchange adds on its own: the apply keeps the configured ones (with
-    # a warning that SMTP stays enabled).
-    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update "-target=msexchangeserver_email_address_policy.test" `
-        "-target=msexchangeserver_exchange_certificate_services.test") "Recording apply_to_recipients and the certificate services after import"
+    # nothing, since no setting of the policy changes.
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update "-target=msexchangeserver_email_address_policy.test") "Recording apply_to_recipients after import"
     Assert-NoChanges "Drift check after import" @("-var", "phase=update")
 
     # -----------------------------------------------------------------------
@@ -472,9 +476,10 @@ try {
     Write-Step "terraform destroy"
     # Adopted objects stay: put back what the update phase changed first.
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the adopted objects"
-    Assert-NoChanges "OAB external URL, database retention and POP/IMAP certificate restored" $RestoreTargets
+    Assert-NoChanges "OAB external URL, database retention and POP/IMAP/SMTP certificates restored" $RestoreTargets
     $restorePending = $false
-    foreach ($address in @($Keep) + $Adopted + "msexchangeserver_exchange_certificate_services.original[0]") { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
+    foreach ($address in @($Keep) + $Adopted + "msexchangeserver_exchange_certificate_services.original[0]" +
+            "msexchangeserver_exchange_certificate_services.original_smtp[0]") { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"
     Write-Pass "Destroy"
@@ -497,7 +502,7 @@ try {
 } finally {
     if ($restorePending) {
         Write-Host ""
-        Write-Host "Putting back the original OAB external URL, database retention and POP/IMAP certificate..." -ForegroundColor Yellow
+        Write-Host "Putting back the original OAB external URL, database retention and POP/IMAP/SMTP certificates..." -ForegroundColor Yellow
         $r = Invoke-Tf apply -auto-approve -no-color @RestoreTargets
         if ($r.Code -ne 0) {
             Write-Host "  WARN Could not put them back: apply test\main.tf with phase=create and the targets of `$RestoreTargets" -ForegroundColor Red

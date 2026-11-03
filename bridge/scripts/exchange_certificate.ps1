@@ -8,6 +8,12 @@
 #   -Services      EnableServices: "IIS,SMTP"; only the services the
 #                  certificate does not carry yet are enabled
 #
+# SMTP: the services of Get-ExchangeCertificate show SMTP on several
+# certificates (Exchange adds it on its own), but only one is the default
+# SMTP certificate of the server, which TLS uses: the internal transport
+# certificate of Get-TransportService. A certificate "carries" SMTP only when it
+# is that one.
+#
 # Output: the certificate as JSON; Get on a missing certificate gives an empty
 # stdout.
 
@@ -42,9 +48,7 @@ if ($certServer -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$' -or $thumbprint -notmatc
 }
 
 # Services that a removal would break: Exchange removes the certificate anyway.
-# SMTP is not one of them: Exchange adds it to certificates on its own and
-# never takes it away.
-$BoundServices = @("IIS", "POP", "IMAP")
+$BoundServices = @("IIS", "POP", "IMAP", "SMTP")
 
 # A deserialized enum gives its number in a string ("$x" is "27"), its names
 # through [string] ("IMAP, POP, IIS, SMTP").
@@ -52,6 +56,18 @@ function Get-BridgeServices($Certificate) {
     @([string](Get-BridgeProp $Certificate 'Services' '') -split ',' |
         ForEach-Object { $_.Trim() } |
         Where-Object { $_ -and $_ -ne "None" })
+}
+
+function Test-BridgeDefaultSmtp {
+    $service = Get-TransportService -Identity $certServer -ErrorAction Stop
+    [string](Get-BridgeProp $service "InternalTransportCertificateThumbprint" "") -eq $thumbprint
+}
+
+# Get-BridgeEnabledServices returns the services the certificate carries, with
+# SMTP only for the default SMTP certificate.
+function Get-BridgeEnabledServices($Certificate, [bool]$DefaultSmtp) {
+    @(Get-BridgeServices $Certificate | Where-Object { $_ -ne "SMTP" })
+    if ($DefaultSmtp) { "SMTP" }
 }
 
 function ConvertTo-BridgeDate($Value) {
@@ -92,6 +108,7 @@ function Read-BridgeCertificate {
 }
 
 function ConvertTo-BridgeCertificate($Certificate) {
+    $defaultSmtp = Test-BridgeDefaultSmtp
     @{
         Identity             = "$certServer\$($Certificate.Thumbprint)"
         Thumbprint           = [string]$Certificate.Thumbprint
@@ -105,7 +122,7 @@ function ConvertTo-BridgeCertificate($Certificate) {
         IsSelfSigned         = [bool](Get-BridgeProp $Certificate "IsSelfSigned" $false)
         HasPrivateKey        = [bool](Get-BridgeProp $Certificate "HasPrivateKey" $false)
         PrivateKeyExportable = [bool](Get-BridgeProp $Certificate "PrivateKeyExportable" $false)
-        Services             = @(Get-BridgeServices $Certificate)
+        Services             = @(Get-BridgeEnabledServices $Certificate $defaultSmtp)
     } | ConvertTo-Json -Compress
 }
 
@@ -152,11 +169,12 @@ try {
         "EnableServices" {
             $cert = Get-BridgeCertificate
             if ($null -eq $cert) { throw "The certificate $thumbprint does not exist on $certServer." }
-            $current = @(Get-BridgeServices $cert)
+            $current = @(Get-BridgeEnabledServices $cert (Test-BridgeDefaultSmtp))
             $missing = @(ConvertFrom-BridgeCsv $Services | Where-Object { $current -notcontains $_ })
             if ($missing.Count -gt 0) {
                 # -Force: enabling SMTP asks whether to replace the default SMTP
-                # certificate, which fails in a non-interactive session.
+                # certificate (on Mailbox and Edge servers), which fails in a
+                # non-interactive session. -Confirm:$false does not answer it.
                 Enable-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -Services ($missing -join ",") -Force
                 $cert = Read-BridgeCertificate
             }
@@ -166,7 +184,7 @@ try {
         "Delete" {
             $cert = Get-BridgeCertificate
             if ($null -ne $cert) {
-                $inUse = @(Get-BridgeServices $cert | Where-Object { $BoundServices -contains $_ })
+                $inUse = @(Get-BridgeEnabledServices $cert (Test-BridgeDefaultSmtp) | Where-Object { $BoundServices -contains $_ })
                 if ($inUse.Count -gt 0) {
                     throw "The certificate $thumbprint is still enabled for $($inUse -join ', ') on $certServer. Enable these services on another certificate first."
                 }
