@@ -35,7 +35,11 @@ $ErrorActionPreference = "Stop"
 # $Server is the connection parameter of auth.ps1: the server that holds the
 # certificate gets its own name.
 $certServer, $thumbprint = $Identity -split '\\', 2
-if (-not $thumbprint) { throw "Identity must be '<server>\<thumbprint>', got '$Identity'" }
+# Both values go into a command line run on the server (Get-BridgeCertificate).
+if ($certServer -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$' -or $thumbprint -notmatch '^[0-9A-Fa-f]{40}$') {
+    [Console]::Error.WriteLine("Identity must be '<server>\<thumbprint>', got '$Identity'")
+    exit 1
+}
 
 # Services that a removal would break: Exchange removes the certificate anyway.
 # SMTP is not one of them: Exchange adds it to certificates on its own and
@@ -53,12 +57,35 @@ function ConvertTo-BridgeDate($Value) {
     ([datetime]$Value).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
 }
 
+# Get-BridgeCertificate reads the certificate, or $null when it does not exist.
+# Through the remote session, PowerShell turns an Exchange certificate back
+# into a plain X509Certificate2, and the server sends none of its Exchange
+# properties (Services, CertificateDomains, Status): Select-Object runs on the
+# server instead. The endpoint's NoLanguage mode accepts a pipeline of literal
+# values only, hence the command built as a string from checked values.
+$CertificateProperties = "Thumbprint", "FriendlyName", "Subject", "Issuer", "CertificateDomains", "NotBefore",
+    "NotAfter", "Status", "IsSelfSigned", "HasPrivateKey", "PrivateKeyExportable", "Services"
 function Get-BridgeCertificate {
+    $session = @(Get-PSSession | Where-Object { $_.ConfigurationName -eq "Microsoft.Exchange" -and $_.State -eq "Opened" }) |
+        Select-Object -First 1
     try {
-        Get-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -ErrorAction Stop
+        if ($null -eq $session) {
+            return Get-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -ErrorAction Stop
+        }
+        $command = "Get-ExchangeCertificate -Server '$certServer' -Thumbprint '$thumbprint' | Select-Object $($CertificateProperties -join ', ')"
+        Invoke-Command -Session $session -ScriptBlock ([scriptblock]::Create($command)) -ErrorAction Stop
     } catch {
         if (Test-BridgeNotFound $_.Exception.Message) { return $null }
         throw
+    }
+}
+
+# Read-BridgeCertificate reads a certificate that must exist, after a write.
+function Read-BridgeCertificate {
+    Invoke-BridgeRetry {
+        $cert = Get-BridgeCertificate
+        if ($null -eq $cert) { throw "The certificate $thumbprint was not found on $certServer after the change." }
+        $cert
     }
 }
 
@@ -117,7 +144,7 @@ try {
             if ($FriendlyName) { $params["FriendlyName"] = $FriendlyName }
             if ($PrivateKeyExportable) { $params["PrivateKeyExportable"] = ($PrivateKeyExportable -eq "true") }
             Import-ExchangeCertificate @params | Out-Null
-            ConvertTo-BridgeCertificate (Invoke-BridgeRetry { Get-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -ErrorAction Stop })
+            ConvertTo-BridgeCertificate (Read-BridgeCertificate)
         }
 
         "EnableServices" {
@@ -129,7 +156,7 @@ try {
                 # -Force: enabling SMTP asks whether to replace the default SMTP
                 # certificate, which fails in a non-interactive session.
                 Enable-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -Services ($missing -join ",") -Force
-                $cert = Invoke-BridgeRetry { Get-ExchangeCertificate -Server $certServer -Thumbprint $thumbprint -ErrorAction Stop }
+                $cert = Read-BridgeCertificate
             }
             ConvertTo-BridgeCertificate $cert
         }

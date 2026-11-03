@@ -293,7 +293,9 @@ try {
         # language (NoLanguage mode): only plain cmdlet calls, results processed here.
         $domains = @(Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain })
         $databases = @(Invoke-Command -Session $session -ScriptBlock { Get-MailboxDatabase })
-        $certificates = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate })
+        # Selected on the server: the certificates would otherwise come back
+        # as X509Certificate2 objects, without their services.
+        $certificates = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Thumbprint, Services, Subject })
         # Only to show the version: the provider's role group has no Get-ExchangeServer.
         $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
     } finally {

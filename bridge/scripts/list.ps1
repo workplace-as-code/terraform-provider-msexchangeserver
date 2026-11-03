@@ -33,6 +33,14 @@ try {
         if (-not (Test-BridgeNotFound $_.Exception.Message)) { throw }
         @()
     }
+    # Exchange certificates come back from the remote session as plain
+    # X509Certificate2 objects, without their Identity: select it on the
+    # server (see exchange_certificate.ps1).
+    $session = @(Get-PSSession | Where-Object { $_.ConfigurationName -eq "Microsoft.Exchange" -and $_.State -eq "Opened" }) |
+        Select-Object -First 1
+    if ($Noun -eq "ExchangeCertificate" -and $null -ne $session) {
+        $objects = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Identity } -ErrorAction Stop)
+    }
     $ids = @(foreach ($object in $objects) { [string](Get-BridgeProp $object $Property "") })
     ConvertTo-Json -Compress -InputObject ([string[]]@($ids | Where-Object { $_ }))
 } catch {
