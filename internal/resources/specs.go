@@ -99,8 +99,8 @@ var objectSpecs = []objectSpec{
 		script:      "send_connector.ps1",
 		description: "Manages a send connector, which routes outgoing mail for some domains through DNS or smart hosts",
 		notes: "`address_spaces` is required to create a connector, which is created with the `Custom` usage. The connectors that EdgeSync creates (`EdgeSync - ...`) " +
-			"can be read or imported, but EdgeSync overwrites any change. Smart host authentication with a user name and " +
-			"password is not supported: the password would be stored in the Terraform state.",
+			"can be read or imported, but EdgeSync overwrites any change. The provider never sends smart host credentials: " +
+			"the password would be stored in the Terraform state.",
 		fields: []field{
 			setAttr("address_spaces", "AddressSpaces", "Domains the connector routes mail to, as `contoso.com` or `contoso.com;10` "+
 				"with a cost (1 by default). `*` routes all external mail; `*.contoso.com` includes the subdomains."),
@@ -118,8 +118,10 @@ var objectSpecs = []objectSpec{
 				"EncryptionOnly", "CertificateValidation", "DomainValidation"),
 			stringAttr("tls_domain", "TlsDomain", "Domain the certificate of the destination must match with `DomainValidation`."),
 			stringAttr("tls_certificate_name", "TlsCertificateName", "Certificate the servers present, as `<I>issuer<S>subject`."),
-			enumAttr("smart_host_auth_mechanism", "SmartHostAuthMechanism", "Authentication with the smart hosts.",
-				"None", "ExternalAuthoritative"),
+			enumAttr("smart_host_auth_mechanism", "SmartHostAuthMechanism", "Authentication with the smart hosts. `BasicAuth` and "+
+				"`BasicAuthRequireTLS` need a user name and password, which the provider does not manage: set them with "+
+				"`Set-SendConnector -AuthenticationCredential` first. `ExchangeServer` is used by the connectors of EdgeSync.",
+				"None", "BasicAuth", "BasicAuthRequireTLS", "ExchangeServer", "ExternalAuthoritative"),
 			enumAttr("protocol_logging_level", "ProtocolLoggingLevel", "SMTP protocol logging.", "None", "Verbose"),
 			stringAttr("comment", "Comment", "Free text about the connector."),
 		},
