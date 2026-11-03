@@ -20,6 +20,16 @@ variable "exchange_server" {
   type        = string
 }
 
+variable "test_database" {
+  description = "A mailbox database of the tested server, adopted by the test. Set by run.ps1."
+  type        = string
+}
+
+variable "test_database_retention_days" {
+  description = "Deleted item retention of test_database before the test, restored at the end. Set by run.ps1."
+  type        = number
+}
+
 variable "test_remote_mailbox" {
   description = "Identity of an existing remote mailbox, read by the data source. Set by run.ps1; empty skips it."
   type        = string
@@ -217,4 +227,13 @@ resource "msexchangeserver_mapi_virtual_directory" "test" {
 
 resource "msexchangeserver_client_access_service" "test" {
   name = var.exchange_server
+}
+
+# The update phase changes the deleted item retention by one day; run.ps1 puts
+# the original value back before the destroy.
+resource "msexchangeserver_mailbox_database" "test" {
+  name = var.test_database
+  deleted_item_retention_days = local.updated ? (
+    var.test_database_retention_days >= 30 ? var.test_database_retention_days - 1 : var.test_database_retention_days + 1
+  ) : var.test_database_retention_days
 }

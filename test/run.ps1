@@ -104,14 +104,14 @@ $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transpo
 # Per-server objects adopted by main.tf (they exist on every server), imported
 # by server name and never destroyed.
 $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
-    "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service") |
-    ForEach-Object { "msexchangeserver_$_.test" }
+    "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service",
+    "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
 # Resource types listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbox_policy",
     "mobile_device_mailbox_policy", "email_address_policy", "retention_policy",
     "retention_policy_tag", "organization_config", "transport_config", "owa_virtual_directory", "ecp_virtual_directory",
     "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
-    "client_access_service")
+    "client_access_service", "mailbox_database")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -250,6 +250,7 @@ try {
         # The Exchange endpoint runs remote commands without the PowerShell
         # language (NoLanguage mode): only plain cmdlet calls, results processed here.
         $domains = @(Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain })
+        $databases = @(Invoke-Command -Session $session -ScriptBlock { Get-MailboxDatabase })
         # Only to show the version: the provider's role group has no Get-ExchangeServer.
         $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
     } finally {
@@ -258,6 +259,12 @@ try {
     $default = @($domains | Where-Object { "$($_.Default)" -eq "True" }) | Select-Object -First 1
     if ($null -eq $default) { Stop-Test "No default accepted domain found" }
     Write-Pass "Connected. Accepted domains: $(($domains | ForEach-Object { "$($_.DomainName)" }) -join ', ')"
+    # The mailbox database adopted by the test: one of the tested server, and its
+    # deleted item retention, which the update phase changes and run.ps1 restores.
+    $database = @($databases | Where-Object { "$($_.Server)" -eq ($Server -split '\.')[0] }) + @($databases) | Select-Object -First 1
+    if ($null -eq $database) { Stop-Test "No mailbox database found" }
+    $retentionDays = [int](("$($database.DeletedItemRetention)" -split '\.')[0])
+    Write-Pass "Mailbox database: $($database.Name) (deleted item retention: $retentionDays days)"
     $exchange = @($servers | Where-Object { "$($_.Fqdn)" -eq $Server }) | Select-Object -First 1
     if ($null -eq $exchange) { $exchange = $servers | Select-Object -First 1 }
     if ($null -ne $exchange) { Write-Info "Exchange server: $($exchange.Name), version $($exchange.AdminDisplayVersion)" }
@@ -294,6 +301,8 @@ try {
     $env:TF_VAR_default_domain = "$($default.Name)"
     $env:TF_VAR_test_remote_mailbox = $RemoteMailbox
     $env:TF_VAR_exchange_server = $Server
+    $env:TF_VAR_test_database = "$($database.Name)"
+    $env:TF_VAR_test_database_retention_days = "$retentionDays"
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"
@@ -348,7 +357,8 @@ try {
     }
     foreach ($address in $Adopted) {
         Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address"
-        Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $Server) "Import of $address"
+        $id = if ($address -like "*mailbox_database*") { "$($database.Name)" } else { $Server }
+        Assert-Tf (Invoke-Tf import -no-color -var phase=update $address $id) "Import of $address"
     }
     Write-Pass "$($Created.Count + $Adopted.Count) resources imported"
     # apply_to_recipients is a provider setting that Exchange does not store: an
@@ -395,9 +405,10 @@ try {
 
     # -----------------------------------------------------------------------
     Write-Step "terraform destroy"
-    # Adopted objects stay: put back the URL the update phase changed first.
-    Assert-Tf (Invoke-Tf apply -auto-approve -no-color "-target=msexchangeserver_oab_virtual_directory.test") "Restoring the OAB external URL"
-    Assert-NoChanges "OAB external URL restored" @("-target=msexchangeserver_oab_virtual_directory.test")
+    # Adopted objects stay: put back what the update phase changed first.
+    $restore = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test")
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @restore) "Restoring the adopted objects"
+    Assert-NoChanges "OAB external URL and database retention restored" $restore
     foreach ($address in @($Keep) + $Adopted) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
     Assert-Tf (Invoke-Tf destroy -auto-approve -no-color -var phase=update @targets) "terraform destroy"

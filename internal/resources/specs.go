@@ -93,6 +93,36 @@ var objectSpecs = []objectSpec{
 				int64validator.Between(1, 35791394)),
 		},
 	},
+	{
+		typeName: "mailbox_database",
+		noun:     "MailboxDatabase",
+		adopted:  true,
+		description: "Manages the quotas, retention and logging settings of a mailbox database. Mailboxes without " +
+			"quotas of their own use the database's",
+		notes: "`name` is the database name, unique in the organization. Databases are created and removed with the " +
+			"Exchange tools: the provider never mounts, dismounts or removes them. Sizes are in megabytes, `0` meaning unlimited.",
+		fields: []field{
+			sizeAttr("issue_warning_quota_mb", "IssueWarningQuota", "Mailbox size at which users are warned."),
+			sizeAttr("prohibit_send_quota_mb", "ProhibitSendQuota", "Mailbox size at which users can no longer send."),
+			sizeAttr("prohibit_send_receive_quota_mb", "ProhibitSendReceiveQuota", "Mailbox size at which the mailbox can no longer send or receive."),
+			sizeAttr("recoverable_items_warning_quota_mb", "RecoverableItemsWarningQuota", "Size of the Recoverable Items folder at which "+
+				"Exchange logs a warning."),
+			sizeAttr("recoverable_items_quota_mb", "RecoverableItemsQuota", "Largest size of the Recoverable Items folder."),
+			sizeAttr("calendar_logging_quota_mb", "CalendarLoggingQuota", "Largest size of the calendar log in the Recoverable Items folder."),
+			daysAttr("deleted_item_retention_days", "DeletedItemRetention", "Days deleted items stay recoverable.",
+				int64validator.Between(0, 24855)),
+			daysAttr("mailbox_retention_days", "MailboxRetention", "Days a deleted mailbox is kept in the database.",
+				int64validator.Between(0, 24855)),
+			boolAttr("retain_deleted_items_until_backup", "RetainDeletedItemsUntilBackup",
+				"Keep deleted items and mailboxes until the database is backed up, even after their retention period."),
+			boolAttr("circular_logging_enabled", "CircularLoggingEnabled", "Overwrite the transaction logs once their changes are "+
+				"in the database. Outside a database availability group, the change applies after the database is next mounted."),
+			boolAttr("is_excluded_from_provisioning", "IsExcludedFromProvisioning",
+				"Exclude the database from the automatic placement of new mailboxes."),
+			boolAttr("mount_at_startup", "MountAtStartup", "Mount the database when the Information Store service starts."),
+			stringAttr("offline_address_book", "OfflineAddressBook", "Offline address book of the mailboxes of the database, by name."),
+		},
+	},
 	virtualDirectorySpec("owa_virtual_directory", "OwaVirtualDirectory", "Outlook on the web (OWA)", "owa"),
 	virtualDirectorySpec("ecp_virtual_directory", "EcpVirtualDirectory", "Exchange admin center (ECP)", "ecp"),
 	virtualDirectorySpec("web_services_virtual_directory", "WebServicesVirtualDirectory", "Exchange Web Services (EWS)", "EWS"),

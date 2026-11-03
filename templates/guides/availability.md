@@ -35,7 +35,7 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 
 ## Servers
 
-Objects that exist once per server: the resources adopt them by server name and never create or remove them.
+Objects that exist once per server, and mailbox databases: the resources adopt them by server or database name and never create or remove them.
 
 | Resource | Notes |
 |---|---|
@@ -46,6 +46,7 @@ Objects that exist once per server: the resources adopt them by server name and 
 | [`msexchangeserver_oab_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/oab_virtual_directory) | URLs only |
 | [`msexchangeserver_mapi_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mapi_virtual_directory) | URLs only |
 | [`msexchangeserver_client_access_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/client_access_service) | Autodiscover URL in Active Directory |
+| [`msexchangeserver_mailbox_database`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mailbox_database) | Quotas, retention and logging; never mounted, dismounted or removed |
 
 ## Data sources
 
