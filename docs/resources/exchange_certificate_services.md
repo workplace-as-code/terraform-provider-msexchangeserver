@@ -24,6 +24,7 @@ resource "msexchangeserver_exchange_certificate_services" "mail" {
 ## Limitations
 
 - `SMTP` means the default SMTP certificate of the server, the internal transport certificate of `Get-TransportService`. `Get-ExchangeCertificate` also shows SMTP on other certificates, which Exchange marks on its own: the provider ignores that mark.
+- Exchange only accepts a certificate whose private key is in a CryptoAPI provider (CSP) as the default SMTP certificate, because EdgeSync uses it: a CNG key fails with "isn't a Cryptographic API certificate". Certificates completed from an Exchange request are CSP; a PFX made with `New-SelfSignedCertificate` or other tools may hold a CNG key.
 - Enabling SMTP replaces the default SMTP certificate without the confirmation that `Enable-ExchangeCertificate` asks for (`-Force`). Check what relies on the previous one first, such as the `tls_certificate_name` of connectors.
 - Services that the certificate carries but `services` does not list are left as they are; an imported resource lists them all.
 - Mailbox servers only.

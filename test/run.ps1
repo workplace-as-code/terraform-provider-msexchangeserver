@@ -244,10 +244,12 @@ try {
     Write-Step "Test certificate"
     # Self-signed, made once per account and reused while it stays valid: a
     # certificate left on the server by an interrupted run then has the
-    # thumbprint of the next run, whose pre-cleanup removes it.
+    # thumbprint of the next run, whose pre-cleanup removes it. Its key is in a
+    # CryptoAPI provider: Exchange refuses a CNG key, the default of
+    # New-SelfSignedCertificate, for the default SMTP certificate.
     $certDir = Join-Path $env:LOCALAPPDATA "msexchangeserver-test"
-    $pfxPath = Join-Path $certDir "tf-ci-cert.pfx"
-    $pfxPasswordPath = Join-Path $certDir "tf-ci-cert.txt"
+    $pfxPath = Join-Path $certDir "tf-ci-cert-capi.pfx"
+    $pfxPasswordPath = Join-Path $certDir "tf-ci-cert-capi.txt"
     $pfxData = $null
     if ((Test-Path -LiteralPath $pfxPath) -and (Test-Path -LiteralPath $pfxPasswordPath)) {
         $pfxPassword = (Get-Content -Raw -LiteralPath $pfxPasswordPath).Trim()
@@ -258,7 +260,8 @@ try {
         New-Item -ItemType Directory -Force -Path $certDir | Out-Null
         $pfxPassword = [guid]::NewGuid().ToString()
         $selfSigned = New-SelfSignedCertificate -Subject "CN=tf-ci-cert.example" -DnsName "tf-ci-cert.example" `
-            -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(1)
+            -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(1) `
+            -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeySpec KeyExchange
         try {
             Export-PfxCertificate -Cert $selfSigned -FilePath $pfxPath -Password (ConvertTo-SecureString $pfxPassword -AsPlainText -Force) | Out-Null
         } finally {
