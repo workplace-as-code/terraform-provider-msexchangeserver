@@ -18,7 +18,9 @@ Check the connection from the Terraform machine before running Terraform:
 
 ```powershell
 $cred    = Get-Credential "CONTOSO\svc-terraform"
-$session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "http://exch01.contoso.local/PowerShell/" -Authentication Kerberos -Credential $cred
+$session = New-PSSession -ConfigurationName Microsoft.Exchange `
+    -ConnectionUri "http://exch01.contoso.local/PowerShell/" `
+    -Authentication Kerberos -Credential $cred
 Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain }
 Remove-PSSession $session
 ```
@@ -144,7 +146,8 @@ No interactive logon is needed: a **Windows service** or a **scheduled task** ru
   2. Install the service without a password on the command line, where PowerShell history and process auditing would keep it:
 
      ```powershell
-     .\gitlab-runner.exe install --working-directory C:\GitLab-Runner-write --config C:\GitLab-Runner-write\config.toml --service gitlab-runner-write
+     .\gitlab-runner.exe install --working-directory C:\GitLab-Runner-write `
+         --config C:\GitLab-Runner-write\config.toml --service gitlab-runner-write
      ```
 
   3. In **services.msc**, open the service, tab **Log On**: choose **This account**, enter `CONTOSO\svc-tf-exch-write` and its password, then restart the service. Windows grants the account **Log on as a service** at the same time.
@@ -191,7 +194,8 @@ From a PowerShell session running as the account (for example `runas /user:CONTO
 
 ```powershell
 whoami
-$session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "http://exch01.contoso.local/PowerShell/" -Authentication Kerberos
+$session = New-PSSession -ConfigurationName Microsoft.Exchange `
+    -ConnectionUri "http://exch01.contoso.local/PowerShell/" -Authentication Kerberos
 Invoke-Command -Session $session -ScriptBlock { Get-AcceptedDomain }
 Remove-PSSession $session
 ```
@@ -219,14 +223,17 @@ Or `$env:EXCHANGE_AUTH_METHOD = "certificate"` and `$env:EXCHANGE_CERTIFICATE_TH
 - **On each Exchange server**, the IIS feature Client Certificate Mapping Authentication (`Web-Client-Auth`), enabled on the PowerShell virtual directory:
 
   ```powershell
-  & $env:windir\system32\inetsrv\appcmd.exe set config "Default Web Site/PowerShell/" -section:system.webServer/security/authentication/clientCertificateMappingAuthentication /enabled:True /commit:apphost
+  $section = "system.webServer/security/authentication/clientCertificateMappingAuthentication"
+  & $env:windir\system32\inetsrv\appcmd.exe set config "Default Web Site/PowerShell/" `
+      -section:$section /enabled:True /commit:apphost
   ```
 
 - **The mapping on the account** (`altSecurityIdentities`), with the issuer and subject written exactly as Windows shows them, separated by a comma and a space:
 
   ```powershell
   $cert = Get-Item Cert:\CurrentUser\My\<thumbprint>
-  Set-ADUser svc-terraform -Add @{ altSecurityIdentities = "X509:<I>$($cert.Issuer)<S>$($cert.Subject)" }
+  $mapping = "X509:<I>$($cert.Issuer)<S>$($cert.Subject)"
+  Set-ADUser svc-terraform -Add @{ altSecurityIdentities = $mapping }
   ```
 
 Limitations:

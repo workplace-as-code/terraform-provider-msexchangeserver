@@ -17,7 +17,7 @@ data "msexchangeserver_accepted_domain" "primary" {
 }
 
 output "primary_domain_type" {
-  description = "Type of the contoso.com accepted domain: Authoritative, InternalRelay or ExternalRelay."
+  description = "Type of contoso.com: Authoritative, InternalRelay or ExternalRelay."
   value       = data.msexchangeserver_accepted_domain.primary.domain_type
 }
 ```
