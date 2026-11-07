@@ -106,13 +106,14 @@ $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transpo
 # Per-server objects adopted by main.tf (they exist on every server), imported
 # by server name and never destroyed.
 $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
-    "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "client_access_service",
-    "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
+    "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "outlook_anywhere",
+    "client_access_service", "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
 # Adopted objects whose settings the update phase changes: applied again with
 # phase=create to put back their original values. restore=true gives IIS, POP,
 # IMAP and the default SMTP certificate back to the certificates that had them
 # before the test.
-$RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_mailbox_database.test",
+$RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_outlook_anywhere.test",
+    "-target=msexchangeserver_mailbox_database.test",
     "-target=msexchangeserver_exchange_certificate_services.original",
     "-target=msexchangeserver_exchange_certificate_services.original_iis",
     "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
@@ -122,7 +123,7 @@ $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbo
     "mobile_device_mailbox_policy", "email_address_policy", "retention_policy",
     "retention_policy_tag", "organization_config", "transport_config", "owa_virtual_directory", "ecp_virtual_directory",
     "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
-    "client_access_service", "mailbox_database", "send_connector", "receive_connector", "exchange_certificate",
+    "outlook_anywhere", "client_access_service", "mailbox_database", "send_connector", "receive_connector", "exchange_certificate",
     "exchange_certificate_services")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
@@ -178,6 +179,18 @@ function Assert-NoChanges([string]$Label, [string[]]$Extra = @()) {
         }
         default { Assert-Tf $r "$Label (terraform plan)" }
     }
+}
+
+# Get-StateAttr returns an attribute of a resource in the state.
+function Get-StateAttr([string]$Address, [string]$Name) {
+    # Not through Invoke-Tf: the whole state would go to the log.
+    $json = @(& terraform show -json -no-color 2>$null)
+    if ($LASTEXITCODE -ne 0) { Stop-Test "terraform show failed (exit $LASTEXITCODE)" }
+    # Windows PowerShell 5.1: assign the parsed JSON first, then use it.
+    $state = ($json -join "`n") | ConvertFrom-Json
+    $resource = @($state.values.root_module.resources | Where-Object { $_.address -eq $Address }) | Select-Object -First 1
+    if ($null -eq $resource) { Stop-Test "$Address is not in the state" }
+    $resource.values.$Name
 }
 
 # Import-Orphans imports every test object that still exists and returns the
@@ -426,10 +439,22 @@ try {
     Write-Pass "Apply"
     Assert-NoChanges "Drift check after apply"
 
+    # Authentication settings read from IIS: the update writes the opposite of
+    # the original values, the restore writes the originals back.
+    $oabBasic = [bool](Get-StateAttr "msexchangeserver_oab_virtual_directory.test" "basic_authentication")
+    $oaMethod = [string](Get-StateAttr "msexchangeserver_outlook_anywhere.test" "internal_client_authentication_method")
+    if ($oaMethod -eq "") { Stop-Test "Outlook Anywhere has no internal client authentication method in the state: IIS was not read" }
+    $oaOther = if ($oaMethod -eq "Negotiate") { "Ntlm" } else { "Negotiate" }
+    Write-Info "Original values: OAB basic_authentication=$oabBasic, Outlook Anywhere internal method=$oaMethod"
+    $AuthUpdate = @("-var", "oab_basic_authentication=$((-not $oabBasic).ToString().ToLower())",
+        "-var", "oa_internal_client_authentication_method=$oaOther")
+    $RestoreTargets += @("-var", "oab_basic_authentication=$($oabBasic.ToString().ToLower())",
+        "-var", "oa_internal_client_authentication_method=$oaMethod")
+
     Write-Step "Update of every test object (phase=update)"
-    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update) "terraform apply (update)"
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update @AuthUpdate) "terraform apply (update)"
     Write-Pass "Update"
-    Assert-NoChanges "Drift check after update" @("-var", "phase=update")
+    Assert-NoChanges "Drift check after update" (@("-var", "phase=update") + $AuthUpdate)
 
     # -----------------------------------------------------------------------
     Write-Step "Import of every test object"
@@ -489,7 +514,7 @@ try {
     Write-Step "terraform destroy"
     # Adopted objects stay: put back what the update phase changed first.
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the adopted objects"
-    Assert-NoChanges "OAB external URL, database retention and certificates restored" $RestoreTargets
+    Assert-NoChanges "OAB and Outlook Anywhere settings, database retention and certificates restored" $RestoreTargets
     $restorePending = $false
     foreach ($address in @($Keep) + $Adopted + @("original", "original_iis", "original_smtp" | ForEach-Object { "msexchangeserver_exchange_certificate_services.$_[0]" })) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
@@ -514,7 +539,7 @@ try {
 } finally {
     if ($restorePending) {
         Write-Host ""
-        Write-Host "Putting back the original OAB external URL, database retention and certificates..." -ForegroundColor Yellow
+        Write-Host "Putting back the original OAB and Outlook Anywhere settings, database retention and certificates..." -ForegroundColor Yellow
         $r = Invoke-Tf apply -auto-approve -no-color @RestoreTargets
         if ($r.Code -ne 0) {
             Write-Host "  WARN Could not put them back: apply test\main.tf with phase=create and the targets of `$RestoreTargets" -ForegroundColor Red
