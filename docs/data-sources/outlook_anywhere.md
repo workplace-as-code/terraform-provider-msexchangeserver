@@ -43,7 +43,7 @@ output "external_hostname" {
 
 ## Permissions
 
-The provider's account needs `Get-OutlookAnywhere` and `Set-OutlookAnywhere`, from the **Exchange Virtual Directories** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets of the virtual directories: the built-in role can also create and remove them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs `Get-OutlookAnywhere` and `Set-OutlookAnywhere`, from the **Exchange Servers** management role (in **Exchange Virtual Directories**, `Get-OutlookAnywhere` cannot name a server). The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets the provider runs: the built-in role also changes DAG membership, maintenance mode and every server setting. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

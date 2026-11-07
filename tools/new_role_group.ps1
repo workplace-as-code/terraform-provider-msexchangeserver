@@ -131,7 +131,6 @@ $CustomRoles = @(
         "Get-EcpVirtualDirectory",
         "Get-MapiVirtualDirectory",
         "Get-OabVirtualDirectory",
-        "Get-OutlookAnywhere",
         "Get-OwaVirtualDirectory",
         "Get-WebServicesVirtualDirectory",
         "Set-ActiveSyncVirtualDirectory",
@@ -139,18 +138,20 @@ $CustomRoles = @(
         "Set-EcpVirtualDirectory",
         "Set-MapiVirtualDirectory",
         "Set-OabVirtualDirectory",
-        "Set-OutlookAnywhere",
         "Set-OwaVirtualDirectory",
         "Set-WebServicesVirtualDirectory"
     ) },
     # Set-MapiVirtualDirectory -IISAuthenticationMethods is in Exchange Servers,
     # not in Exchange Virtual Directories: RBAC adds up both roles' parameters.
     # Exchange Servers has no Get-MapiVirtualDirectory: Virtual Directories
-    # keeps it.
+    # keeps it. Outlook Anywhere comes from Exchange Servers too: in Exchange
+    # Virtual Directories, Get-OutlookAnywhere has no -Identity nor -Server.
     @{ Name = "Client Access"; Parent = "Exchange Servers"; Cmdlets = @(
         "Get-ClientAccessService",
+        "Get-OutlookAnywhere",
         "Set-ClientAccessService",
-        "Set-MapiVirtualDirectory"
+        "Set-MapiVirtualDirectory",
+        "Set-OutlookAnywhere"
     ) },
     @{ Name = "Databases"; Parent = "Databases"; Cmdlets = @(
         "Get-MailboxDatabase",

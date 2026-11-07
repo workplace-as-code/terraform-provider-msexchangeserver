@@ -318,8 +318,12 @@ func TestMapiAuthenticationFromExchangeServers(t *testing.T) {
 		if role[1] != "Client Access" {
 			continue
 		}
-		if !strings.Contains(role[3], `"Set-MapiVirtualDirectory"`) {
-			t.Errorf("custom role Client Access lacks Set-MapiVirtualDirectory: %s", role[3])
+		// Outlook Anywhere too: in Exchange Virtual Directories, Get-OutlookAnywhere
+		// only has -ShowMailboxVirtualDirectories (no -Identity, no -Server).
+		for _, c := range []string{"Set-MapiVirtualDirectory", "Get-OutlookAnywhere", "Set-OutlookAnywhere"} {
+			if !strings.Contains(role[3], `"`+c+`"`) {
+				t.Errorf("custom role Client Access lacks %s: %s", c, role[3])
+			}
 		}
 		return
 	}
