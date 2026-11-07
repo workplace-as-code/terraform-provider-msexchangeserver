@@ -275,21 +275,32 @@ func TestCustomRolesKeepTheBridgeCmdlets(t *testing.T) {
 		noun := c[strings.Index(c, "-")+1:]
 		bridgeByNoun[noun] = append(bridgeByNoun[noun], c)
 	}
+	// Together, the custom roles keep every cmdlet the bridge runs on a noun
+	// they hold: a role may keep part of them when its parent built-in role
+	// has only those (Exchange Servers has Set-MapiVirtualDirectory, for
+	// -IISAuthenticationMethods, but not Get-MapiVirtualDirectory).
+	keptByNoun := map[string]map[string]bool{}
 	for _, role := range roles {
-		keptByNoun := map[string][]string{}
 		for _, m := range quotedRe.FindAllStringSubmatch(role[3], -1) {
 			noun := m[1][strings.Index(m[1], "-")+1:]
-			keptByNoun[noun] = append(keptByNoun[noun], m[1])
+			if keptByNoun[noun] == nil {
+				keptByNoun[noun] = map[string]bool{}
+			}
+			keptByNoun[noun][m[1]] = true
 		}
-		for noun, kept := range keptByNoun {
-			want, ok := bridgeByNoun[noun]
-			if !ok {
-				continue
-			}
-			sort.Strings(kept)
-			if strings.Join(kept, ",") != strings.Join(want, ",") {
-				t.Errorf("custom role %q keeps %v, the bridge runs %v", role[1], kept, want)
-			}
+	}
+	for noun, keptSet := range keptByNoun {
+		want, ok := bridgeByNoun[noun]
+		if !ok {
+			continue
+		}
+		var kept []string
+		for c := range keptSet {
+			kept = append(kept, c)
+		}
+		sort.Strings(kept)
+		if strings.Join(kept, ",") != strings.Join(want, ",") {
+			t.Errorf("the custom roles keep %v, the bridge runs %v", kept, want)
 		}
 	}
 }

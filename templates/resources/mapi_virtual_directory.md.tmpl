@@ -17,7 +17,7 @@ description: |-
 
 ## Permissions
 
-The provider's account needs `Get-MapiVirtualDirectory` and `Set-MapiVirtualDirectory`, from the **Exchange Virtual Directories** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets of the virtual directories: the built-in role can also create and remove them. `iis_authentication_methods` (`-IISAuthenticationMethods`) comes with the **Exchange Servers** role instead: the role group's custom role derived from it holds the two MAPI cmdlets too. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs `Get-MapiVirtualDirectory` and `Set-MapiVirtualDirectory`, from the **Exchange Virtual Directories** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets of the virtual directories: the built-in role can also create and remove them. `iis_authentication_methods` (`-IISAuthenticationMethods`) comes with the **Exchange Servers** role instead: the role group's custom role derived from it holds `Set-MapiVirtualDirectory` too. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

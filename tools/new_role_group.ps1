@@ -145,9 +145,10 @@ $CustomRoles = @(
     ) },
     # Set-MapiVirtualDirectory -IISAuthenticationMethods is in Exchange Servers,
     # not in Exchange Virtual Directories: RBAC adds up both roles' parameters.
+    # Exchange Servers has no Get-MapiVirtualDirectory: Virtual Directories
+    # keeps it.
     @{ Name = "Client Access"; Parent = "Exchange Servers"; Cmdlets = @(
         "Get-ClientAccessService",
-        "Get-MapiVirtualDirectory",
         "Set-ClientAccessService",
         "Set-MapiVirtualDirectory"
     ) },
