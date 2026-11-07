@@ -6,9 +6,9 @@
 # Same parameters as object.ps1. -Identity is the server name or FQDN, for the
 # virtual directory of the Default Web Site, or the identity of the virtual
 # directory ("EX01\owa (Default Web Site)"). It is returned as the name, in the
-# form it was given. Virtual directories are read with -ADPropertiesOnly: the
-# URLs are in Active Directory, and reading IIS is slow and fails when the
-# server does not answer.
+# form it was given. Virtual directories are read in full, from IIS too: the
+# authentication settings live there, and -ADPropertiesOnly returns False for
+# them. A server whose IIS does not answer is an error, never AD-only values.
 
 param(
     [string]$Server                = "",
@@ -44,11 +44,16 @@ function Get-BridgeTarget {
     if ($Noun -eq "ClientAccessService") {
         return Invoke-BridgeRetry { Get-ClientAccessService -Identity $Identity }
     }
-    if ($Identity -like "*\*") {
-        return Invoke-BridgeRetry { & "Get-$Noun" -Identity $Identity -ADPropertiesOnly }
+    try {
+        if ($Identity -like "*\*") {
+            return Invoke-BridgeRetry { & "Get-$Noun" -Identity $Identity }
+        }
+        $dir = @(Invoke-BridgeRetry { & "Get-$Noun" -Server $Identity }) |
+            Where-Object { [string]$_.Name -like "* (Default Web Site)" } | Select-Object -First 1
+    } catch {
+        if (Test-BridgeNotFound $_.Exception.Message) { throw }
+        throw "Could not read the $Noun of '$Identity' from IIS: $($_.Exception.Message)"
     }
-    $dir = @(Invoke-BridgeRetry { & "Get-$Noun" -Server $Identity -ADPropertiesOnly }) |
-        Where-Object { [string]$_.Name -like "* (Default Web Site)" } | Select-Object -First 1
     if ($null -eq $dir) { throw "$Noun of the Default Web Site of '$Identity' couldn't be found." }
     $dir
 }

@@ -31,8 +31,12 @@ output "external_url" {
 
 ### Read-Only
 
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
+- `external_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients on the internet.
 - `external_url` (String) URL used from the internet. An empty string clears it.
 - `id` (String) The object name (same as `name`).
+- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`, `OAuth`.
+- `internal_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients inside the network.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
 
 ## Permissions

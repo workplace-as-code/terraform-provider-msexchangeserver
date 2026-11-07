@@ -293,3 +293,24 @@ func TestCustomRolesKeepTheBridgeCmdlets(t *testing.T) {
 		}
 	}
 }
+
+// Set-MapiVirtualDirectory -IISAuthenticationMethods comes with the built-in
+// Exchange Servers role, not Exchange Virtual Directories: the custom role
+// derived from Exchange Servers must hold the MAPI cmdlets too (RBAC adds up
+// the parameters a cmdlet gets from each role).
+func TestMapiAuthenticationFromExchangeServers(t *testing.T) {
+	script, err := os.ReadFile(roleGroupScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range customRoleRe.FindAllStringSubmatch(string(script), -1) {
+		if role[1] != "Client Access" {
+			continue
+		}
+		if !strings.Contains(role[3], `"Set-MapiVirtualDirectory"`) {
+			t.Errorf("custom role Client Access lacks Set-MapiVirtualDirectory: %s", role[3])
+		}
+		return
+	}
+	t.Fatal("custom role Client Access not found")
+}

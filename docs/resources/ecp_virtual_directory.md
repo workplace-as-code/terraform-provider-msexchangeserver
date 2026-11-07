@@ -2,12 +2,12 @@
 page_title: "msexchangeserver_ecp_virtual_directory (Resource) - msexchangeserver"
 subcategory: "Servers"
 description: |-
-  Manages the URLs of the Exchange admin center (ECP) virtual directory of an Exchange server (Set-EcpVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-EcpVirtualDirectory shows it, such as EX01\ecp (Default Web Site). Authentication settings are not managed.
+  Manages the URLs and the authentication settings of the Exchange admin center (ECP) virtual directory of an Exchange server (Set-EcpVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-EcpVirtualDirectory shows it, such as EX01\ecp (Default Web Site). Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 ---
 
 # msexchangeserver_ecp_virtual_directory (Resource)
 
-Manages the URLs of the Exchange admin center (ECP) virtual directory of an Exchange server (`Set-EcpVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-EcpVirtualDirectory` shows it, such as `EX01\ecp (Default Web Site)`. Authentication settings are not managed.
+Manages the URLs and the authentication settings of the Exchange admin center (ECP) virtual directory of an Exchange server (`Set-EcpVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-EcpVirtualDirectory` shows it, such as `EX01\ecp (Default Web Site)`. Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 
 ## Example Usage
 
@@ -29,12 +29,21 @@ resource "msexchangeserver_ecp_virtual_directory" "ex01" {
 
 ### Optional
 
+- `adfs_authentication` (Boolean) AD FS claims-based authentication.
+- `basic_authentication` (Boolean) Basic authentication in IIS.
+- `digest_authentication` (Boolean) Digest authentication in IIS.
 - `external_url` (String) URL used from the internet. An empty string clears it.
+- `forms_authentication` (Boolean) Forms-based authentication.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
+- `oauth_authentication` (Boolean) OAuth authentication.
+- `windows_authentication` (Boolean) Integrated Windows authentication in IIS.
 
 ### Read-Only
 
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
+- `external_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients on the internet.
 - `id` (String) The object name (same as `name`).
+- `internal_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients inside the network.
 
 ## Permissions
 

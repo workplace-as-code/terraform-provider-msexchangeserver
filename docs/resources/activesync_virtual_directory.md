@@ -2,12 +2,12 @@
 page_title: "msexchangeserver_activesync_virtual_directory (Resource) - msexchangeserver"
 subcategory: "Servers"
 description: |-
-  Manages the URLs of the Exchange ActiveSync virtual directory of an Exchange server (Set-ActiveSyncVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-ActiveSyncVirtualDirectory shows it, such as EX01\Microsoft-Server-ActiveSync (Default Web Site). Authentication settings are not managed.
+  Manages the URLs and the authentication settings of the Exchange ActiveSync virtual directory of an Exchange server (Set-ActiveSyncVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-ActiveSyncVirtualDirectory shows it, such as EX01\Microsoft-Server-ActiveSync (Default Web Site). Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 ---
 
 # msexchangeserver_activesync_virtual_directory (Resource)
 
-Manages the URLs of the Exchange ActiveSync virtual directory of an Exchange server (`Set-ActiveSyncVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-ActiveSyncVirtualDirectory` shows it, such as `EX01\Microsoft-Server-ActiveSync (Default Web Site)`. Authentication settings are not managed.
+Manages the URLs and the authentication settings of the Exchange ActiveSync virtual directory of an Exchange server (`Set-ActiveSyncVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-ActiveSyncVirtualDirectory` shows it, such as `EX01\Microsoft-Server-ActiveSync (Default Web Site)`. Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 
 ## Example Usage
 
@@ -29,11 +29,15 @@ resource "msexchangeserver_activesync_virtual_directory" "ex01" {
 
 ### Optional
 
+- `basic_auth_enabled` (Boolean) Basic authentication in IIS.
+- `client_cert_auth` (String) Client certificate authentication. Valid values: `Ignore`, `Accepted`, `Required` (case-insensitive).
 - `external_url` (String) URL used from the internet. An empty string clears it.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
+- `windows_auth_enabled` (Boolean) Integrated Windows authentication in IIS.
 
 ### Read-Only
 
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
 - `id` (String) The object name (same as `name`).
 
 ## Permissions

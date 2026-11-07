@@ -2,21 +2,24 @@
 page_title: "msexchangeserver_mapi_virtual_directory (Resource) - msexchangeserver"
 subcategory: "Servers"
 description: |-
-  Manages the URLs of the MAPI over HTTP virtual directory of an Exchange server (Set-MapiVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-MapiVirtualDirectory shows it, such as EX01\mapi (Default Web Site). Authentication settings are not managed.
+  Manages the URLs and the authentication settings of the MAPI over HTTP virtual directory of an Exchange server (Set-MapiVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-MapiVirtualDirectory shows it, such as EX01\mapi (Default Web Site). Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 ---
 
 # msexchangeserver_mapi_virtual_directory (Resource)
 
-Manages the URLs of the MAPI over HTTP virtual directory of an Exchange server (`Set-MapiVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-MapiVirtualDirectory` shows it, such as `EX01\mapi (Default Web Site)`. Authentication settings are not managed.
+Manages the URLs and the authentication settings of the MAPI over HTTP virtual directory of an Exchange server (`Set-MapiVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-MapiVirtualDirectory` shows it, such as `EX01\mapi (Default Web Site)`. Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 
 ## Example Usage
 
 ```terraform
-# The same namespace inside and outside the network.
+# The same namespace inside and outside the network, with OAuth for hybrid
+# modern authentication.
 resource "msexchangeserver_mapi_virtual_directory" "ex01" {
   name         = "EX01"
   internal_url = "https://mail.contoso.com/mapi"
   external_url = "https://mail.contoso.com/mapi"
+
+  iis_authentication_methods = ["Ntlm", "OAuth", "Negotiate"]
 }
 ```
 
@@ -30,15 +33,19 @@ resource "msexchangeserver_mapi_virtual_directory" "ex01" {
 ### Optional
 
 - `external_url` (String) URL used from the internet. An empty string clears it.
+- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`, `OAuth`.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
 
 ### Read-Only
 
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
+- `external_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients on the internet.
 - `id` (String) The object name (same as `name`).
+- `internal_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients inside the network.
 
 ## Permissions
 
-The provider's account needs `Get-MapiVirtualDirectory` and `Set-MapiVirtualDirectory`, from the **Exchange Virtual Directories** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets of the virtual directories: the built-in role can also create and remove them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs `Get-MapiVirtualDirectory` and `Set-MapiVirtualDirectory`, from the **Exchange Virtual Directories** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the `Get-` and `Set-` cmdlets of the virtual directories: the built-in role can also create and remove them. `iis_authentication_methods` (`-IISAuthenticationMethods`) comes with the **Exchange Servers** role instead: the role group's custom role derived from it holds the two MAPI cmdlets too. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 
