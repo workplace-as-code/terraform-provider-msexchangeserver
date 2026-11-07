@@ -4,6 +4,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // specByType returns the generic spec of a resource type.
@@ -99,4 +102,84 @@ func TestOutlookAnywhereSpec(t *testing.T) {
 			t.Errorf("%s: kind %v (present %v), want %v", name, got, ok, k)
 		}
 	}
+}
+
+// Turning forms authentication on also sets Basic and turns Digest and Windows
+// off (Set-OwaVirtualDirectory): the unconfigured members of the group are
+// planned unknown, or apply would end in "inconsistent result".
+func TestCoupledFieldsUnknown(t *testing.T) {
+	spec := specByType(t, "owa_virtual_directory")
+	state := map[string]attr.Value{
+		"basic_authentication": types.BoolValue(true), "windows_authentication": types.BoolValue(true),
+		"digest_authentication": types.BoolValue(false), "forms_authentication": types.BoolValue(false),
+		"oauth_authentication": types.BoolValue(false),
+	}
+	plan := map[string]attr.Value{}
+	for k, v := range state {
+		plan[k] = v
+	}
+	plan["forms_authentication"] = types.BoolValue(true)
+	config := map[string]attr.Value{"forms_authentication": types.BoolValue(true)}
+
+	got := coupledUnknown(spec.fields, plan, state, config)
+	for _, name := range []string{"basic_authentication", "windows_authentication", "digest_authentication"} {
+		if !got[name].IsUnknown() {
+			t.Errorf("%s = %s, want unknown", name, got[name])
+		}
+	}
+	if got["forms_authentication"].IsUnknown() || got["oauth_authentication"].IsUnknown() {
+		t.Errorf("configured or uncoupled attribute became unknown: %v", got)
+	}
+
+	// Nothing configured in the group changes: the plan stays as it is.
+	plan["forms_authentication"] = types.BoolValue(false)
+	config["forms_authentication"] = types.BoolValue(false)
+	for name, v := range coupledUnknown(spec.fields, plan, state, config) {
+		if v.IsUnknown() {
+			t.Errorf("%s became unknown without a change", name)
+		}
+	}
+}
+
+// Exchange accepts NTLM and reads it back as Ntlm: the state keeps the
+// configured case, and unknown methods are refused at plan time.
+func TestIISAuthenticationMethodsCase(t *testing.T) {
+	for _, typeName := range []string{"mapi_virtual_directory", "outlook_anywhere"} {
+		r := &objectResource{spec: specByType(t, typeName)}
+		attrs := map[string]attr.Value{}
+		for name, typ := range r.spec.attrTypes() {
+			attrs[name] = nullOf(typ)
+		}
+		attrs["name"] = types.StringValue("EX01")
+		attrs["iis_authentication_methods"] = types.SetValueMust(types.StringType,
+			[]attr.Value{types.StringValue("NTLM"), types.StringValue("Negotiate")})
+		prior := types.ObjectValueMust(r.spec.attrTypes(), attrs)
+		got, diags := r.fromAPI(prior, []byte(`{"Name":"EX01","IISAuthenticationMethods":["Ntlm","Negotiate"]}`))
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		if g := got.Attributes()["iis_authentication_methods"]; !g.Equal(attrs["iis_authentication_methods"]) {
+			t.Errorf("%s: iis_authentication_methods = %s, want the configured case", typeName, g)
+		}
+		for _, f := range r.spec.fields {
+			if f.name == "iis_authentication_methods" && len(f.values) == 0 {
+				t.Errorf("%s: iis_authentication_methods has no valid values", typeName)
+			}
+		}
+	}
+}
+
+func nullOf(typ attr.Type) attr.Value {
+	switch typ {
+	case types.BoolType:
+		return types.BoolNull()
+	case types.Int64Type:
+		return types.Int64Null()
+	case types.StringType:
+		return types.StringNull()
+	}
+	if _, ok := typ.(types.SetType); ok {
+		return types.SetNull(types.StringType)
+	}
+	return types.ListNull(types.StringType)
 }

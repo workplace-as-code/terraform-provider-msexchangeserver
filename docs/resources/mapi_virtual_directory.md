@@ -33,7 +33,7 @@ resource "msexchangeserver_mapi_virtual_directory" "ex01" {
 ### Optional
 
 - `external_url` (String) URL used from the internet. An empty string clears it.
-- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`, `OAuth`.
+- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory. Valid values: `Basic`, `Ntlm`, `Negotiate`, `OAuth` (case-insensitive).
 - `internal_url` (String) URL used inside the network. An empty string clears it.
 
 ### Read-Only

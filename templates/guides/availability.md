@@ -41,12 +41,13 @@ Objects that exist once per server, and mailbox databases: the resources adopt t
 
 | Resource | Notes |
 |---|---|
-| [`msexchangeserver_owa_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/owa_virtual_directory) | URLs only |
-| [`msexchangeserver_ecp_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ecp_virtual_directory) | URLs only |
-| [`msexchangeserver_web_services_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/web_services_virtual_directory) | URLs only |
-| [`msexchangeserver_activesync_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/activesync_virtual_directory) | URLs only |
-| [`msexchangeserver_oab_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/oab_virtual_directory) | URLs only |
-| [`msexchangeserver_mapi_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mapi_virtual_directory) | URLs only |
+| [`msexchangeserver_owa_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/owa_virtual_directory) | URLs and authentication (IIS); Extended Protection read only |
+| [`msexchangeserver_ecp_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/ecp_virtual_directory) | URLs and authentication (IIS); Extended Protection read only |
+| [`msexchangeserver_web_services_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/web_services_virtual_directory) | URLs and authentication (IIS); Extended Protection read only |
+| [`msexchangeserver_activesync_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/activesync_virtual_directory) | URLs and authentication (IIS); Extended Protection read only |
+| [`msexchangeserver_oab_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/oab_virtual_directory) | URLs and authentication (IIS); Extended Protection read only |
+| [`msexchangeserver_mapi_virtual_directory`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mapi_virtual_directory) | URLs and IIS authentication methods; Extended Protection read only |
+| [`msexchangeserver_outlook_anywhere`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/outlook_anywhere) | Host names, authentication and SSL of Outlook Anywhere (`/Rpc`) |
 | [`msexchangeserver_client_access_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/client_access_service) | Autodiscover URL in Active Directory |
 | [`msexchangeserver_mailbox_database`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mailbox_database) | Quotas, retention and logging; never mounted, dismounted or removed |
 | [`msexchangeserver_exchange_certificate`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/exchange_certificate) | Imported from a PFX (write-only, Terraform 1.11 and later) and removed on destroy |

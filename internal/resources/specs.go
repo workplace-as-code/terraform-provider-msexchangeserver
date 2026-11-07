@@ -341,8 +341,8 @@ var objectSpecs = []objectSpec{
 		})...),
 	virtualDirectorySpec("mapi_virtual_directory", "MapiVirtualDirectory", "MAPI over HTTP", "mapi",
 		withMethods([]field{
-			setAttr("iis_authentication_methods", "IISAuthenticationMethods",
-				"Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`, `OAuth`."),
+			setEnumAttr("iis_authentication_methods", "IISAuthenticationMethods",
+				"Authentication methods of the IIS directory.", "Basic", "Ntlm", "Negotiate", "OAuth"),
 		})...),
 	{
 		typeName: "outlook_anywhere",
@@ -363,8 +363,8 @@ var objectSpecs = []objectSpec{
 				"Authentication method of clients inside the network.", "Basic", "Ntlm", "Negotiate"),
 			enumAttr("external_client_authentication_method", "ExternalClientAuthenticationMethod",
 				"Authentication method of clients on the internet.", "Basic", "Ntlm", "Negotiate"),
-			setAttr("iis_authentication_methods", "IISAuthenticationMethods",
-				"Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`."),
+			setEnumAttr("iis_authentication_methods", "IISAuthenticationMethods",
+				"Authentication methods of the IIS directory.", "Basic", "Ntlm", "Negotiate"),
 			boolAttr("internal_clients_require_ssl", "InternalClientsRequireSsl", "Require SSL for clients inside the network."),
 			boolAttr("external_clients_require_ssl", "ExternalClientsRequireSsl",
 				"Require SSL for clients on the internet. Exchange ignores it while `external_hostname` is empty."),
@@ -447,10 +447,13 @@ var (
 		"Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script."))
 )
 
-// formsAuthFields are the authentication settings of OWA and ECP.
+// formsAuthFields are the authentication settings of OWA and ECP. Exchange
+// changes Basic, Windows, Digest and Forms together (turning Forms on sets
+// Basic and turns Digest and Windows off): they are coupled.
 func formsAuthFields() []field {
-	return []field{basicAuthField, windowsAuthField, digestAuthField,
-		boolAttr("forms_authentication", "FormsAuthentication", "Forms-based authentication."),
+	return []field{coupledAttr("forms", basicAuthField), coupledAttr("forms", windowsAuthField),
+		coupledAttr("forms", digestAuthField),
+		coupledAttr("forms", boolAttr("forms_authentication", "FormsAuthentication", "Forms-based authentication.")),
 		oauthField,
 		boolAttr("adfs_authentication", "AdfsAuthentication", "AD FS claims-based authentication."),
 	}

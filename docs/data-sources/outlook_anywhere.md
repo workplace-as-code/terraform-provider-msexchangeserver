@@ -35,7 +35,7 @@ output "external_hostname" {
 - `external_clients_require_ssl` (Boolean) Require SSL for clients on the internet. Exchange ignores it while `external_hostname` is empty.
 - `external_hostname` (String) Host name used from the internet. An empty string clears it.
 - `id` (String) The object name (same as `name`).
-- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`.
+- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory. Valid values: `Basic`, `Ntlm`, `Negotiate` (case-insensitive).
 - `internal_client_authentication_method` (String) Authentication method of clients inside the network. Valid values: `Basic`, `Ntlm`, `Negotiate` (case-insensitive).
 - `internal_clients_require_ssl` (Boolean) Require SSL for clients inside the network.
 - `internal_hostname` (String) Host name used inside the network, such as `mail.contoso.com`. An empty string clears it.

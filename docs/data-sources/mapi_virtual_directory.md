@@ -35,7 +35,7 @@ output "external_url" {
 - `external_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients on the internet.
 - `external_url` (String) URL used from the internet. An empty string clears it.
 - `id` (String) The object name (same as `name`).
-- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`, `OAuth`.
+- `iis_authentication_methods` (Set of String) Authentication methods of the IIS directory. Valid values: `Basic`, `Ntlm`, `Negotiate`, `OAuth` (case-insensitive).
 - `internal_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients inside the network.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
 

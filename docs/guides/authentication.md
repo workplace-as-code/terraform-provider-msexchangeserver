@@ -47,7 +47,7 @@ When a built-in role grants much more than the provider needs, the script create
 | `terraform-msexchangeserver Retention` | **Retention Management** | Retention policy and tag cmdlets, `Get-Mailbox`, `Set-ADServerSettings` (used with `domain_controller`) | Set litigation holds and disable accounts |
 | `terraform-msexchangeserver Remote Mailboxes` | **View-Only Recipients** | `Get-RemoteMailbox` | Export mailbox diagnostic logs |
 | `terraform-msexchangeserver Virtual Directories` | **Exchange Virtual Directories** | `Get-` and `Set-` cmdlets of the OWA, ECP, EWS, ActiveSync, OAB, MAPI and Autodiscover virtual directories | Create and remove virtual directories, the PowerShell one included |
-| `terraform-msexchangeserver Client Access` | **Exchange Servers** | `Get-` and `Set-ClientAccessService` | Change DAG membership, server component states and every server setting |
+| `terraform-msexchangeserver Client Access` | **Exchange Servers** | `Get-` and `Set-ClientAccessService`, `Get-` and `Set-OutlookAnywhere`, `Set-MapiVirtualDirectory` (for `-IISAuthenticationMethods`) | Change DAG membership, server component states and every server setting |
 | `terraform-msexchangeserver Databases` | **Databases** | `Get-` and `Set-MailboxDatabase` | Mount, dismount, move and remove databases |
 | `terraform-msexchangeserver Certificates` | **Exchange Server Certificates** | `Get-`, `Import-`, `Enable-` and `Remove-ExchangeCertificate` | Export private keys |
 
