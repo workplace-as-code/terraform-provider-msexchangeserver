@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -58,7 +59,69 @@ type field struct {
 	desc       string
 	values     []string // enumField only
 	validators []validator.Int64
-	forceNew   bool // changing the value replaces the object
+	forceNew   bool   // changing the value replaces the object
+	readOnly   bool   // shown, never set (see readOnlyAttr)
+	coupled    string // group of settings Exchange changes together (see coupledAttr)
+}
+
+// coupledAttr puts f in a group of settings that Exchange changes together:
+// Set-OwaVirtualDirectory -FormsAuthentication $true also sets Basic and turns
+// Digest and Windows off. When a configured member of the group changes, the
+// members left out of the configuration are planned unknown (coupledUnknown).
+func coupledAttr(group string, f field) field {
+	f.coupled = group
+	return f
+}
+
+// unknownValue is the unknown value of the attribute's type.
+func (f field) unknownValue() attr.Value {
+	switch f.attrType() {
+	case types.BoolType:
+		return types.BoolUnknown()
+	case types.Int64Type:
+		return types.Int64Unknown()
+	case types.StringType:
+		return types.StringUnknown()
+	}
+	if f.kind == setField {
+		return types.SetUnknown(types.StringType)
+	}
+	return types.ListUnknown(types.StringType)
+}
+
+// coupledUnknown returns the plan attributes with the unconfigured members of
+// each coupled group set to unknown, for the groups in which a configured
+// member changes. The others keep their planned value.
+func coupledUnknown(fields []field, plan, state, config map[string]attr.Value) map[string]attr.Value {
+	out := make(map[string]attr.Value, len(plan))
+	for k, v := range plan {
+		out[k] = v
+	}
+	changed := map[string]bool{}
+	for _, f := range fields {
+		if f.coupled == "" || !isSet(config[f.name]) {
+			continue
+		}
+		if p, s := plan[f.name], state[f.name]; p != nil && (s == nil || !p.Equal(s)) {
+			changed[f.coupled] = true
+		}
+	}
+	for _, f := range fields {
+		if f.coupled != "" && changed[f.coupled] && !isSet(config[f.name]) {
+			out[f.name] = f.unknownValue()
+		}
+	}
+	return out
+}
+
+func isSet(v attr.Value) bool { return v != nil && !v.IsNull() }
+
+// readOnlyAttr turns f into an attribute that Terraform shows but never sets,
+// such as a setting that another tool manages (Extended Protection). It wraps
+// any constructor: readOnlyAttr(enumAttr(...)).
+func readOnlyAttr(f field) field {
+	f.readOnly = true
+	return f
 }
 
 func boolAttr(name, param, desc string) field {
@@ -82,6 +145,15 @@ func int64Attr(name, param, desc string, validators ...validator.Int64) field {
 // order of the configuration never shows as a change.
 func setAttr(name, param, desc string) field {
 	return field{name: name, param: param, kind: setField, desc: desc}
+}
+
+// setEnumAttr is a set whose elements are restricted to values, compared
+// without regard to case: Exchange accepts NTLM and reads it back as Ntlm, so
+// the state keeps the configured case (see foldSet).
+func setEnumAttr(name, param, desc string, values ...string) field {
+	f := enumAttr(name, param, desc, values...)
+	f.kind = setField
+	return f
 }
 
 // sizeAttr is an Exchange size such as MaxSendSize, written as "<n>MB" and
@@ -193,6 +265,9 @@ func (f field) attrType() attr.Type {
 }
 
 func (f field) schemaAttribute() schema.Attribute {
+	if f.readOnly {
+		return f.readOnlyAttribute()
+	}
 	switch f.kind {
 	case boolField:
 		return optionalBool(f.desc)
@@ -211,13 +286,36 @@ func (f field) schemaAttribute() schema.Attribute {
 	case listField:
 		return optionalList(f.desc)
 	case setField:
-		return optionalSet(f.desc)
+		a := optionalSet(f.desc)
+		if len(f.values) > 0 {
+			a.Validators = []validator.Set{setvalidator.ValueStringsAre(stringvalidator.OneOfCaseInsensitive(f.values...))}
+		}
+		return a
 	default:
 		a := optionalString(f.desc)
 		if f.forceNew {
 			a.PlanModifiers = append(a.PlanModifiers, stringplanmodifier.RequiresReplaceIfConfigured())
 		}
 		return a
+	}
+}
+
+// readOnlyAttribute is the Computed-only form of the attribute. It has no
+// UseStateForUnknown: Exchange may change it with any write (turning Basic
+// authentication on also changes InternalAuthenticationMethods), so the plan
+// shows it as known after apply instead of a value apply could contradict.
+func (f field) readOnlyAttribute() schema.Attribute {
+	switch f.kind {
+	case boolField:
+		return schema.BoolAttribute{Computed: true, MarkdownDescription: f.desc}
+	case int64Field, daysField, minutesField, sizeField, limitField:
+		return schema.Int64Attribute{Computed: true, MarkdownDescription: f.desc}
+	case listField:
+		return schema.ListAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: f.desc}
+	case setField:
+		return schema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: f.desc}
+	default:
+		return schema.StringAttribute{Computed: true, MarkdownDescription: f.desc}
 	}
 }
 
@@ -230,6 +328,7 @@ type objectResource struct {
 var (
 	_ resource.Resource                = &objectResource{}
 	_ resource.ResourceWithImportState = &objectResource{}
+	_ resource.ResourceWithModifyPlan  = &objectResource{}
 )
 
 // newObjectResource returns the factory registered in the provider.
@@ -286,6 +385,37 @@ func (r *objectResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 // singletonID is the id recorded in state for a organization-wide setting.
 func (r *objectResource) singletonID() string {
 	return r.spec.singletonID()
+}
+
+// ModifyPlan plans unknown the settings that Exchange changes together with a
+// configured one (coupledUnknown). Only updates are concerned: a create reads
+// everything back anyway, and a destroy plans nothing.
+func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || !r.spec.hasCoupled() {
+		return
+	}
+	var plan, state, config types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	attrs := coupledUnknown(r.spec.fields, plan.Attributes(), state.Attributes(), config.Attributes())
+	obj, diags := types.ObjectValue(r.spec.attrTypes(), attrs)
+	resp.Diagnostics.Append(diags...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, obj)...)
+	}
+}
+
+func (s objectSpec) hasCoupled() bool {
+	for _, f := range s.fields {
+		if f.coupled != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *objectResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -422,11 +552,31 @@ func (r *objectResource) params(action, identity string, values map[string]any) 
 // the current value of the others (UseStateForUnknown), and writing them back
 // could fail (an empty address) or overwrite a change made in the meantime.
 func (r *objectResource) write(ctx context.Context, action string, plan, config types.Object, identity string) (types.Object, diag.Diagnostics) {
+	values, diags := r.writeValues(ctx, action, plan, config)
+	if diags.HasError() {
+		return plan, diags
+	}
+	output, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params(action, identity, values))
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Failed to write %s", r.spec.typeName), err.Error())
+		return plan, diags
+	}
+	state, d := r.fromAPI(plan, output)
+	diags.Append(d...)
+	return state, diags
+}
+
+// writeValues returns the cmdlet parameters to send: the configured, known
+// values of the writable attributes, in the form Exchange parses.
+func (r *objectResource) writeValues(ctx context.Context, action string, plan, config types.Object) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	values := map[string]any{}
 	attrs, configured := plan.Attributes(), config.Attributes()
 	for _, f := range r.spec.fields {
 		v := attrs[f.name]
+		if f.readOnly {
+			continue // shown, never set
+		}
 		if c := configured[f.name]; c == nil || c.IsNull() {
 			continue // not in the configuration: not managed
 		}
@@ -482,17 +632,7 @@ func (r *objectResource) write(ctx context.Context, action string, plan, config 
 			values[f.param] = items
 		}
 	}
-	if diags.HasError() {
-		return plan, diags
-	}
-	output, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params(action, identity, values))
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Failed to write %s", r.spec.typeName), err.Error())
-		return plan, diags
-	}
-	state, d := r.fromAPI(plan, output)
-	diags.Append(d...)
-	return state, diags
+	return values, diags
 }
 
 // fromAPI builds the state from the JSON object returned by the bridge. prior
@@ -541,6 +681,10 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Objec
 			values[f.name] = listValue(toStrings(raw))
 		case setField:
 			values[f.name] = setValue(toStrings(raw))
+			if len(f.values) > 0 { // enum set: keep the configured case
+				priorSet, _ := priorAttrs[f.name].(types.Set)
+				values[f.name] = foldSet(priorSet, setValue(toStrings(raw)))
+			}
 		case enumField:
 			s, _ := raw.(string)
 			priorValue, _ := priorAttrs[f.name].(types.String)

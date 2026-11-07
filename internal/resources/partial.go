@@ -60,6 +60,26 @@ func foldString(prior types.String, api string) types.String {
 	return types.StringValue(api)
 }
 
+// foldSet returns api with each element written as in prior when they differ
+// only by case, so a configured "NTLM" does not show as a change to "Ntlm".
+func foldSet(prior, api types.Set) types.Set {
+	if prior.IsNull() || prior.IsUnknown() {
+		return api
+	}
+	elems := make([]attr.Value, 0, len(api.Elements()))
+	for _, e := range api.Elements() {
+		s, _ := e.(types.String)
+		for _, p := range prior.Elements() {
+			if ps, ok := p.(types.String); ok && strings.EqualFold(ps.ValueString(), s.ValueString()) {
+				s = ps
+				break
+			}
+		}
+		elems = append(elems, s)
+	}
+	return types.SetValueMust(types.StringType, elems)
+}
+
 // listValue converts the strings returned by Exchange to a list attribute.
 func listValue(values []string) types.List {
 	elems := make([]attr.Value, 0, len(values))

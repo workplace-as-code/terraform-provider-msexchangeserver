@@ -31,9 +31,18 @@ output "external_url" {
 
 ### Read-Only
 
+- `adfs_authentication` (Boolean) AD FS claims-based authentication.
+- `basic_authentication` (Boolean) Basic authentication in IIS.
+- `digest_authentication` (Boolean) Digest authentication in IIS.
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
+- `external_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients on the internet.
 - `external_url` (String) URL used from the internet. An empty string clears it.
+- `forms_authentication` (Boolean) Forms-based authentication.
 - `id` (String) The object name (same as `name`).
+- `internal_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients inside the network.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
+- `oauth_authentication` (Boolean) OAuth authentication.
+- `windows_authentication` (Boolean) Integrated Windows authentication in IIS.
 
 ## Permissions
 

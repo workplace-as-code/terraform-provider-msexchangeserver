@@ -321,13 +321,57 @@ var objectSpecs = []objectSpec{
 			setAttr("exception_list", "ExceptionList", "Subdomains of a wildcard `internal_address` that are not rewritten."),
 		},
 	},
-	virtualDirectorySpec("owa_virtual_directory", "OwaVirtualDirectory", "Outlook on the web (OWA)", "owa"),
-	virtualDirectorySpec("ecp_virtual_directory", "EcpVirtualDirectory", "Exchange admin center (ECP)", "ecp"),
-	virtualDirectorySpec("web_services_virtual_directory", "WebServicesVirtualDirectory", "Exchange Web Services (EWS)", "EWS"),
+	virtualDirectorySpec("owa_virtual_directory", "OwaVirtualDirectory", "Outlook on the web (OWA)", "owa",
+		withMethods(formsAuthFields())...),
+	virtualDirectorySpec("ecp_virtual_directory", "EcpVirtualDirectory", "Exchange admin center (ECP)", "ecp",
+		withMethods(formsAuthFields())...),
+	virtualDirectorySpec("web_services_virtual_directory", "WebServicesVirtualDirectory", "Exchange Web Services (EWS)", "EWS",
+		withMethods([]field{basicAuthField, windowsAuthField, digestAuthField, oauthField,
+			boolAttr("ws_security_authentication", "WSSecurityAuthentication", "WS-Security authentication in IIS."),
+		})...),
 	virtualDirectorySpec("activesync_virtual_directory", "ActiveSyncVirtualDirectory", "Exchange ActiveSync",
-		"Microsoft-Server-ActiveSync"),
-	virtualDirectorySpec("oab_virtual_directory", "OabVirtualDirectory", "offline address book (OAB)", "OAB"),
-	virtualDirectorySpec("mapi_virtual_directory", "MapiVirtualDirectory", "MAPI over HTTP", "mapi"),
+		"Microsoft-Server-ActiveSync",
+		boolAttr("basic_auth_enabled", "BasicAuthEnabled", "Basic authentication in IIS."),
+		boolAttr("windows_auth_enabled", "WindowsAuthEnabled", "Integrated Windows authentication in IIS."),
+		enumAttr("client_cert_auth", "ClientCertAuth", "Client certificate authentication.", "Ignore", "Accepted", "Required"),
+		extendedProtectionField),
+	virtualDirectorySpec("oab_virtual_directory", "OabVirtualDirectory", "offline address book (OAB)", "OAB",
+		withMethods([]field{basicAuthField, windowsAuthField, oauthField,
+			boolAttr("require_ssl", "RequireSSL", "Require SSL in IIS."),
+		})...),
+	virtualDirectorySpec("mapi_virtual_directory", "MapiVirtualDirectory", "MAPI over HTTP", "mapi",
+		withMethods([]field{
+			setEnumAttr("iis_authentication_methods", "IISAuthenticationMethods",
+				"Authentication methods of the IIS directory.", "Basic", "Ntlm", "Negotiate", "OAuth"),
+		})...),
+	{
+		typeName: "outlook_anywhere",
+		noun:     "OutlookAnywhere",
+		script:   "virtual_directory.ps1",
+		adopted:  true,
+		description: "Manages Outlook Anywhere (RPC over HTTP, the `/Rpc` virtual directory) of an Exchange server: " +
+			"its host names and authentication settings",
+		notes: "`name` is the server name or FQDN, for the directory of the Default Web Site, or its identity as " +
+			"`Get-OutlookAnywhere` shows it, such as `EX01\\Rpc (Default Web Site)`. " +
+			"Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.",
+		fields: []field{
+			stringAttr("internal_hostname", "InternalHostname",
+				"Host name used inside the network, such as `mail.contoso.com`. An empty string clears it."),
+			stringAttr("external_hostname", "ExternalHostname",
+				"Host name used from the internet. An empty string clears it."),
+			enumAttr("internal_client_authentication_method", "InternalClientAuthenticationMethod",
+				"Authentication method of clients inside the network.", "Basic", "Ntlm", "Negotiate"),
+			enumAttr("external_client_authentication_method", "ExternalClientAuthenticationMethod",
+				"Authentication method of clients on the internet.", "Basic", "Ntlm", "Negotiate"),
+			setEnumAttr("iis_authentication_methods", "IISAuthenticationMethods",
+				"Authentication methods of the IIS directory.", "Basic", "Ntlm", "Negotiate"),
+			boolAttr("internal_clients_require_ssl", "InternalClientsRequireSsl", "Require SSL for clients inside the network."),
+			boolAttr("external_clients_require_ssl", "ExternalClientsRequireSsl",
+				"Require SSL for clients on the internet. Exchange ignores it while `external_hostname` is empty."),
+			boolAttr("ssl_offloading", "SSLOffloading",
+				"A load balancer in front of the server decrypts SSL: the directory does not require it."),
+		},
+	},
 	{
 		typeName: "client_access_service",
 		noun:     "ClientAccessService",
@@ -370,21 +414,59 @@ func ipListEntrySpec(typeName, noun, list, effect string) objectSpec {
 }
 
 // virtualDirectorySpec describes the virtual directory of noun on the Default
-// Web Site of a server, named "<dir> (Default Web Site)". Only its URLs are
-// managed: its authentication settings are read from IIS, which is slow and
-// fails when the server does not answer.
-func virtualDirectorySpec(typeName, noun, label, dir string) objectSpec {
+// Web Site of a server, named "<dir> (Default Web Site)": its URLs, stored in
+// Active Directory, and the authentication settings auth, stored in IIS. The
+// script always reads IIS, so a read fails when the server's IIS does not
+// answer rather than show AD-only placeholders.
+func virtualDirectorySpec(typeName, noun, label, dir string, auth ...field) objectSpec {
 	return objectSpec{
 		typeName:    typeName,
 		noun:        noun,
 		script:      "virtual_directory.ps1",
 		adopted:     true,
-		description: fmt.Sprintf("Manages the URLs of the %s virtual directory of an Exchange server", label),
+		description: fmt.Sprintf("Manages the URLs and the authentication settings of the %s virtual directory of an Exchange server", label),
 		notes: fmt.Sprintf("`name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity "+
-			"as `Get-%s` shows it, such as `EX01\\%s (Default Web Site)`. Authentication settings are not managed.", noun, dir),
-		fields: []field{
+			"as `Get-%s` shows it, such as `EX01\\%s (Default Web Site)`. "+
+			"Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.", noun, dir),
+		fields: append([]field{
 			stringAttr("internal_url", "InternalUrl", "URL used inside the network. An empty string clears it."),
 			stringAttr("external_url", "ExternalUrl", "URL used from the internet. An empty string clears it."),
-		},
+		}, auth...),
 	}
+}
+
+// Authentication settings shared by several virtual directories.
+var (
+	basicAuthField   = boolAttr("basic_authentication", "BasicAuthentication", "Basic authentication in IIS.")
+	windowsAuthField = boolAttr("windows_authentication", "WindowsAuthentication",
+		"Integrated Windows authentication in IIS.")
+	digestAuthField = boolAttr("digest_authentication", "DigestAuthentication", "Digest authentication in IIS.")
+	oauthField      = boolAttr("oauth_authentication", "OAuthAuthentication", "OAuth authentication.")
+
+	extendedProtectionField = readOnlyAttr(stringAttr("extended_protection_token_checking", "ExtendedProtectionTokenChecking",
+		"Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script."))
+)
+
+// formsAuthFields are the authentication settings of OWA and ECP. Exchange
+// changes Basic, Windows, Digest and Forms together (turning Forms on sets
+// Basic and turns Digest and Windows off): they are coupled.
+func formsAuthFields() []field {
+	return []field{coupledAttr("forms", basicAuthField), coupledAttr("forms", windowsAuthField),
+		coupledAttr("forms", digestAuthField),
+		coupledAttr("forms", boolAttr("forms_authentication", "FormsAuthentication", "Forms-based authentication.")),
+		oauthField,
+		boolAttr("adfs_authentication", "AdfsAuthentication", "AD FS claims-based authentication."),
+	}
+}
+
+// withMethods adds the read-only settings of a directory that Autodiscover
+// describes: Extended Protection and the methods Exchange advertises, which
+// it derives from the IIS settings.
+func withMethods(auth []field) []field {
+	return append(auth, extendedProtectionField,
+		readOnlyAttr(setAttr("internal_authentication_methods", "InternalAuthenticationMethods",
+			"Authentication methods Exchange advertises to clients inside the network.")),
+		readOnlyAttr(setAttr("external_authentication_methods", "ExternalAuthenticationMethods",
+			"Authentication methods Exchange advertises to clients on the internet.")),
+	)
 }

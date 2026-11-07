@@ -31,9 +31,13 @@ output "external_url" {
 
 ### Read-Only
 
+- `basic_auth_enabled` (Boolean) Basic authentication in IIS.
+- `client_cert_auth` (String) Client certificate authentication. Valid values: `Ignore`, `Accepted`, `Required` (case-insensitive).
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
 - `external_url` (String) URL used from the internet. An empty string clears it.
 - `id` (String) The object name (same as `name`).
 - `internal_url` (String) URL used inside the network. An empty string clears it.
+- `windows_auth_enabled` (Boolean) Integrated Windows authentication in IIS.
 
 ## Permissions
 

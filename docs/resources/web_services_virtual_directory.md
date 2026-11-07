@@ -2,21 +2,27 @@
 page_title: "msexchangeserver_web_services_virtual_directory (Resource) - msexchangeserver"
 subcategory: "Servers"
 description: |-
-  Manages the URLs of the Exchange Web Services (EWS) virtual directory of an Exchange server (Set-WebServicesVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-WebServicesVirtualDirectory shows it, such as EX01\EWS (Default Web Site). Authentication settings are not managed.
+  Manages the URLs and the authentication settings of the Exchange Web Services (EWS) virtual directory of an Exchange server (Set-WebServicesVirtualDirectory). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. name is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as Get-WebServicesVirtualDirectory shows it, such as EX01\EWS (Default Web Site). Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 ---
 
 # msexchangeserver_web_services_virtual_directory (Resource)
 
-Manages the URLs of the Exchange Web Services (EWS) virtual directory of an Exchange server (`Set-WebServicesVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-WebServicesVirtualDirectory` shows it, such as `EX01\EWS (Default Web Site)`. Authentication settings are not managed.
+Manages the URLs and the authentication settings of the Exchange Web Services (EWS) virtual directory of an Exchange server (`Set-WebServicesVirtualDirectory`). The object cannot be created: the resource adopts the existing one. Only the attributes set in the configuration are managed; the others keep their current value. Destroying this resource removes it from Terraform state without changing Exchange. `name` is the server name or FQDN, for the virtual directory of the Default Web Site, or its identity as `Get-WebServicesVirtualDirectory` shows it, such as `EX01\EWS (Default Web Site)`. Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.
 
 ## Example Usage
 
 ```terraform
-# The same namespace inside and outside the network.
-resource "msexchangeserver_web_services_virtual_directory" "ex01" {
-  name         = "EX01"
+# Every server gets the same namespace and the same authentication settings:
+# a new server is aligned on apply, and a server that differs shows in the plan.
+resource "msexchangeserver_web_services_virtual_directory" "this" {
+  for_each = toset(["EX01", "EX02"])
+
+  name         = each.key
   internal_url = "https://mail.contoso.com/EWS/Exchange.asmx"
   external_url = "https://mail.contoso.com/EWS/Exchange.asmx"
+
+  basic_authentication = false
+  oauth_authentication = true
 }
 ```
 
@@ -29,12 +35,20 @@ resource "msexchangeserver_web_services_virtual_directory" "ex01" {
 
 ### Optional
 
+- `basic_authentication` (Boolean) Basic authentication in IIS.
+- `digest_authentication` (Boolean) Digest authentication in IIS.
 - `external_url` (String) URL used from the internet. An empty string clears it.
 - `internal_url` (String) URL used inside the network. An empty string clears it.
+- `oauth_authentication` (Boolean) OAuth authentication.
+- `windows_authentication` (Boolean) Integrated Windows authentication in IIS.
+- `ws_security_authentication` (Boolean) WS-Security authentication in IIS.
 
 ### Read-Only
 
+- `extended_protection_token_checking` (String) Extended Protection: `None`, `Allow` or `Require`. Read only: set it with Microsoft's Extended Protection script.
+- `external_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients on the internet.
 - `id` (String) The object name (same as `name`).
+- `internal_authentication_methods` (Set of String) Authentication methods Exchange advertises to clients inside the network.
 
 ## Permissions
 

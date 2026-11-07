@@ -101,3 +101,29 @@ data "msexchangeserver_exchange_certificate" "test" {
     }
   }
 }
+
+# The data sources read IIS like the resources: they must show the same
+# authentication settings, not the False that Active Directory alone gives.
+data "msexchangeserver_oab_virtual_directory" "test" {
+  name       = msexchangeserver_oab_virtual_directory.test.name
+  depends_on = [msexchangeserver_oab_virtual_directory.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.basic_authentication == msexchangeserver_oab_virtual_directory.test.basic_authentication
+      error_message = "The data source shows another basic_authentication than the resource."
+    }
+  }
+}
+
+data "msexchangeserver_outlook_anywhere" "test" {
+  name       = msexchangeserver_outlook_anywhere.test.name
+  depends_on = [msexchangeserver_outlook_anywhere.test]
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.iis_authentication_methods) > 0
+      error_message = "The data source shows no IIS authentication method: IIS was not read."
+    }
+  }
+}

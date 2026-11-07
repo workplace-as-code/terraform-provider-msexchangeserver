@@ -70,6 +70,18 @@ variable "original_smtp_certificate" {
   type        = string
 }
 
+variable "oab_basic_authentication" {
+  description = "Set by run.ps1: the opposite of the original value for the update, the original to restore. null leaves it unmanaged."
+  type        = bool
+  default     = null
+}
+
+variable "oa_internal_client_authentication_method" {
+  description = "Set by run.ps1 like oab_basic_authentication, for Outlook Anywhere."
+  type        = string
+  default     = null
+}
+
 variable "restore" {
   description = "Set to true by run.ps1 to give IIS, POP, IMAP and the default SMTP certificate back to the original certificates."
   type        = bool
@@ -258,9 +270,18 @@ resource "msexchangeserver_activesync_virtual_directory" "test" {
   name = var.exchange_server
 }
 
+# The update changes one authentication setting of the OAB and of Outlook
+# Anywhere, never one that would cut clients off (OWA/ECP forms or Basic) or
+# the provider itself (/PowerShell/); run.ps1 restores the original values.
 resource "msexchangeserver_oab_virtual_directory" "test" {
-  name         = var.exchange_server
-  external_url = local.updated ? "https://tf-ci.invalid/OAB" : ""
+  name                 = var.exchange_server
+  external_url         = local.updated ? "https://tf-ci.invalid/OAB" : ""
+  basic_authentication = var.oab_basic_authentication
+}
+
+resource "msexchangeserver_outlook_anywhere" "test" {
+  name                                  = var.exchange_server
+  internal_client_authentication_method = var.oa_internal_client_authentication_method
 }
 
 resource "msexchangeserver_mapi_virtual_directory" "test" {

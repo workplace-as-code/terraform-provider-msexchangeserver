@@ -33,6 +33,9 @@ func TestObjectSpecs(t *testing.T) {
 			if f.kind == enumField && len(f.values) == 0 {
 				t.Errorf("%s.%s: enum without values", spec.typeName, f.name)
 			}
+			if f.readOnly && f.forceNew {
+				t.Errorf("%s.%s: a read-only attribute cannot replace the object", spec.typeName, f.name)
+			}
 			names[f.name], params[f.param] = true, true
 		}
 
