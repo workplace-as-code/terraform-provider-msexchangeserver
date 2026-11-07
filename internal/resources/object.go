@@ -59,6 +59,15 @@ type field struct {
 	values     []string // enumField only
 	validators []validator.Int64
 	forceNew   bool // changing the value replaces the object
+	readOnly   bool // shown, never set (see readOnlyAttr)
+}
+
+// readOnlyAttr turns f into an attribute that Terraform shows but never sets,
+// such as a setting that another tool manages (Extended Protection). It wraps
+// any constructor: readOnlyAttr(enumAttr(...)).
+func readOnlyAttr(f field) field {
+	f.readOnly = true
+	return f
 }
 
 func boolAttr(name, param, desc string) field {
@@ -193,6 +202,9 @@ func (f field) attrType() attr.Type {
 }
 
 func (f field) schemaAttribute() schema.Attribute {
+	if f.readOnly {
+		return f.readOnlyAttribute()
+	}
 	switch f.kind {
 	case boolField:
 		return optionalBool(f.desc)
@@ -218,6 +230,25 @@ func (f field) schemaAttribute() schema.Attribute {
 			a.PlanModifiers = append(a.PlanModifiers, stringplanmodifier.RequiresReplaceIfConfigured())
 		}
 		return a
+	}
+}
+
+// readOnlyAttribute is the Computed-only form of the attribute. It has no
+// UseStateForUnknown: Exchange may change it with any write (turning Basic
+// authentication on also changes InternalAuthenticationMethods), so the plan
+// shows it as known after apply instead of a value apply could contradict.
+func (f field) readOnlyAttribute() schema.Attribute {
+	switch f.kind {
+	case boolField:
+		return schema.BoolAttribute{Computed: true, MarkdownDescription: f.desc}
+	case int64Field, daysField, minutesField, sizeField, limitField:
+		return schema.Int64Attribute{Computed: true, MarkdownDescription: f.desc}
+	case listField:
+		return schema.ListAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: f.desc}
+	case setField:
+		return schema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: f.desc}
+	default:
+		return schema.StringAttribute{Computed: true, MarkdownDescription: f.desc}
 	}
 }
 
@@ -422,11 +453,31 @@ func (r *objectResource) params(action, identity string, values map[string]any) 
 // the current value of the others (UseStateForUnknown), and writing them back
 // could fail (an empty address) or overwrite a change made in the meantime.
 func (r *objectResource) write(ctx context.Context, action string, plan, config types.Object, identity string) (types.Object, diag.Diagnostics) {
+	values, diags := r.writeValues(ctx, action, plan, config)
+	if diags.HasError() {
+		return plan, diags
+	}
+	output, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params(action, identity, values))
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Failed to write %s", r.spec.typeName), err.Error())
+		return plan, diags
+	}
+	state, d := r.fromAPI(plan, output)
+	diags.Append(d...)
+	return state, diags
+}
+
+// writeValues returns the cmdlet parameters to send: the configured, known
+// values of the writable attributes, in the form Exchange parses.
+func (r *objectResource) writeValues(ctx context.Context, action string, plan, config types.Object) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	values := map[string]any{}
 	attrs, configured := plan.Attributes(), config.Attributes()
 	for _, f := range r.spec.fields {
 		v := attrs[f.name]
+		if f.readOnly {
+			continue // shown, never set
+		}
 		if c := configured[f.name]; c == nil || c.IsNull() {
 			continue // not in the configuration: not managed
 		}
@@ -482,17 +533,7 @@ func (r *objectResource) write(ctx context.Context, action string, plan, config 
 			values[f.param] = items
 		}
 	}
-	if diags.HasError() {
-		return plan, diags
-	}
-	output, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params(action, identity, values))
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Failed to write %s", r.spec.typeName), err.Error())
-		return plan, diags
-	}
-	state, d := r.fromAPI(plan, output)
-	diags.Append(d...)
-	return state, diags
+	return values, diags
 }
 
 // fromAPI builds the state from the JSON object returned by the bridge. prior
