@@ -1,6 +1,7 @@
 # virtual_directory.ps1 - Get/Set for the virtual directories of a server
 # (Get/Set-OwaVirtualDirectory, ...) and for its Client Access services
-# (Get/Set-ClientAccessService). They exist on every server: they are adopted,
+# (Get/Set-ClientAccessService), and for Outlook Anywhere (the /Rpc directory,
+# Get/Set-OutlookAnywhere). They exist on every server: they are adopted,
 # never created or removed.
 #
 # Same parameters as object.ps1. -Identity is the server name or FQDN, for the
@@ -19,7 +20,7 @@ param(
 
     [Parameter(Mandatory)]
     [ValidateSet("OwaVirtualDirectory","EcpVirtualDirectory","WebServicesVirtualDirectory","ActiveSyncVirtualDirectory",
-        "OabVirtualDirectory","MapiVirtualDirectory","ClientAccessService")]
+        "OabVirtualDirectory","MapiVirtualDirectory","OutlookAnywhere","ClientAccessService")]
     [string]$Noun,
     [Parameter(Mandatory)] [string]$Identity,
     [string]$Values     = "",

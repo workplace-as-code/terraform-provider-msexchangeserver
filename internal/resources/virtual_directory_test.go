@@ -70,3 +70,33 @@ func sorted(s []string) string {
 	sort.Strings(c)
 	return strings.Join(c, ",")
 }
+
+// Outlook Anywhere (the /Rpc directory) is adopted per server like the
+// virtual directories, through the same script.
+func TestOutlookAnywhereSpec(t *testing.T) {
+	s := specByType(t, "outlook_anywhere")
+	if s.noun != "OutlookAnywhere" || !s.adopted || s.script != "virtual_directory.ps1" {
+		t.Errorf("noun=%s adopted=%v script=%s", s.noun, s.adopted, s.script)
+	}
+	kinds := map[string]fieldKind{}
+	for _, f := range s.fields {
+		if f.readOnly {
+			t.Errorf("%s: unexpected read-only attribute", f.name)
+		}
+		kinds[f.name] = f.kind
+	}
+	want := map[string]fieldKind{
+		"internal_hostname": stringField, "external_hostname": stringField,
+		"internal_client_authentication_method": enumField, "external_client_authentication_method": enumField,
+		"iis_authentication_methods":   setField,
+		"internal_clients_require_ssl": boolField, "external_clients_require_ssl": boolField, "ssl_offloading": boolField,
+	}
+	if len(kinds) != len(want) {
+		t.Errorf("attributes = %v, want %v", kinds, want)
+	}
+	for name, k := range want {
+		if got, ok := kinds[name]; !ok || got != k {
+			t.Errorf("%s: kind %v (present %v), want %v", name, got, ok, k)
+		}
+	}
+}

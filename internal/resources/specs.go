@@ -345,6 +345,34 @@ var objectSpecs = []objectSpec{
 				"Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`, `OAuth`."),
 		})...),
 	{
+		typeName: "outlook_anywhere",
+		noun:     "OutlookAnywhere",
+		script:   "virtual_directory.ps1",
+		adopted:  true,
+		description: "Manages Outlook Anywhere (RPC over HTTP, the `/Rpc` virtual directory) of an Exchange server: " +
+			"its host names and authentication settings",
+		notes: "`name` is the server name or FQDN, for the directory of the Default Web Site, or its identity as " +
+			"`Get-OutlookAnywhere` shows it, such as `EX01\\Rpc (Default Web Site)`. " +
+			"Authentication settings are read from IIS: a plan fails when the server's IIS does not answer.",
+		fields: []field{
+			stringAttr("internal_hostname", "InternalHostname",
+				"Host name used inside the network, such as `mail.contoso.com`. An empty string clears it."),
+			stringAttr("external_hostname", "ExternalHostname",
+				"Host name used from the internet. An empty string clears it."),
+			enumAttr("internal_client_authentication_method", "InternalClientAuthenticationMethod",
+				"Authentication method of clients inside the network.", "Basic", "Ntlm", "Negotiate"),
+			enumAttr("external_client_authentication_method", "ExternalClientAuthenticationMethod",
+				"Authentication method of clients on the internet.", "Basic", "Ntlm", "Negotiate"),
+			setAttr("iis_authentication_methods", "IISAuthenticationMethods",
+				"Authentication methods of the IIS directory: `Basic`, `Ntlm`, `Negotiate`."),
+			boolAttr("internal_clients_require_ssl", "InternalClientsRequireSsl", "Require SSL for clients inside the network."),
+			boolAttr("external_clients_require_ssl", "ExternalClientsRequireSsl",
+				"Require SSL for clients on the internet. Exchange ignores it while `external_hostname` is empty."),
+			boolAttr("ssl_offloading", "SSLOffloading",
+				"A load balancer in front of the server decrypts SSL: the directory does not require it."),
+		},
+	},
+	{
 		typeName: "client_access_service",
 		noun:     "ClientAccessService",
 		script:   "virtual_directory.ps1",
