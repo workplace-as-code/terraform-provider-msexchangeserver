@@ -318,12 +318,26 @@ try {
         $transport = @(Invoke-Command -Session $session -ScriptBlock { Get-TransportService | Select-Object Name, InternalTransportCertificateThumbprint })
         # Only to show the version: the provider's role group has no Get-ExchangeServer.
         $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
+        # The cmdlets the account can run, for the preflight below.
+        $commands = @(Invoke-Command -Session $session -ScriptBlock { Get-Command } | ForEach-Object { [string]$_.Name })
     } finally {
         Remove-PSSession $session
     }
     $default = @($domains | Where-Object { "$($_.Default)" -eq "True" }) | Select-Object -First 1
     if ($null -eq $default) { Stop-Test "No default accepted domain found" }
     Write-Pass "Connected. Accepted domains: $(($domains | ForEach-Object { "$($_.DomainName)" }) -join ', ')"
+    if ($Step -eq "all") {
+        # Preflight: the account can run every cmdlet of the provider
+        # (cmdlets.txt, kept equal to $ProviderCmdlets of
+        # tools\new_role_group.ps1 by tools\tools_test.go), before any change.
+        $wanted = @(Get-Content -Path (Join-Path $PSScriptRoot "cmdlets.txt") | Where-Object { $_ })
+        $missing = @($wanted | Where-Object { $commands -notcontains $_ })
+        if ($missing.Count -gt 0) {
+            Stop-Test ("The account cannot run these cmdlets of the provider: $($missing -join ', '). Run " +
+                "tools\new_role_group.ps1 -Apply again; a cmdlet in no role does not exist in this Exchange version.")
+        }
+        Write-Pass "Preflight: the account can run the $($wanted.Count) cmdlets of the provider"
+    }
     # The mailbox database adopted by the test: one of the tested server, and its
     # deleted item retention, which the update phase changes and run.ps1 restores.
     $database = @($databases | Where-Object { "$($_.Server)" -eq ($Server -split '\.')[0] }) + @($databases) | Select-Object -First 1
