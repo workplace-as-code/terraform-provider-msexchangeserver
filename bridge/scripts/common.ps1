@@ -102,8 +102,11 @@ function ConvertTo-BridgeStrings {
 }
 
 # Test-BridgeNotFound reports whether an error means the object does not exist.
+# An unknown or unreachable server is an error, never a missing object: the
+# resource would silently leave the state.
 function Test-BridgeNotFound {
     param([string]$Message)
+    if ($Message -match 'Exchange server .+ was not found|network path was not found') { return $false }
     $Message -match "couldn't be found|could not be found|not found|ObjectNotFound|doesn't exist|does not exist"
 }
 

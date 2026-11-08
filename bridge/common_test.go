@@ -43,3 +43,20 @@ $r = Invoke-BridgeRetry -Create { $script:n++; if ($script:n -lt 2) { throw "The
 		}
 	}
 }
+
+// TestNotFoundIsAMissingObject guards Test-BridgeNotFound: a missing object
+// makes the resource leave the state, an unknown or unreachable server is an
+// error.
+func TestNotFoundIsAMissingObject(t *testing.T) {
+	out := runCommon(t, `
+"object: $(Test-BridgeNotFound "The operation couldn't be performed because object 'EX01\Default EX01' couldn't be found on 'DC01.contoso.com'.")"
+"server: $(Test-BridgeNotFound 'Exchange server "EX99" was not found. Please make sure you typed the name correctly.')"
+"network: $(Test-BridgeNotFound 'The network path was not found.')"
+"denied: $(Test-BridgeNotFound 'Access is denied.')"
+`)
+	for _, want := range []string{"object: True", "server: False", "network: False", "denied: False"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
