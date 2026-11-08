@@ -329,3 +329,16 @@ func TestMapiAuthenticationFromExchangeServers(t *testing.T) {
 	}
 	t.Fatal("custom role Client Access not found")
 }
+
+// TestRunPs1CmdletList keeps test/cmdlets.txt, the cmdlets test/run.ps1 checks
+// before the integration tests, equal to $ProviderCmdlets. The lab copies only
+// the test folder to the Windows machine that runs the tests.
+func TestRunPs1CmdletList(t *testing.T) {
+	listed := quotedList(t, listRe, "$ProviderCmdlets")
+	sort.Strings(listed)
+	want := strings.Join(listed, "\n") + "\n"
+	data, err := os.ReadFile("../test/cmdlets.txt")
+	if err != nil || string(data) != want {
+		t.Errorf("test/cmdlets.txt is out of date (%v): write the cmdlets of $ProviderCmdlets in it, one per line:\n%s", err, want)
+	}
+}

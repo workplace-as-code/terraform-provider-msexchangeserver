@@ -102,8 +102,11 @@ function ConvertTo-BridgeStrings {
 }
 
 # Test-BridgeNotFound reports whether an error means the object does not exist.
+# An unknown or unreachable server is an error, never a missing object: the
+# resource would silently leave the state.
 function Test-BridgeNotFound {
     param([string]$Message)
+    if ($Message -match 'Exchange server .+ was not found|network path was not found') { return $false }
     $Message -match "couldn't be found|could not be found|not found|ObjectNotFound|doesn't exist|does not exist"
 }
 
@@ -118,12 +121,17 @@ function Get-BridgeProp {
 # Invoke-BridgeRetry runs a script block and retries it when Exchange
 # reports a transient error (server-side error, throttling, timeout).
 function Invoke-BridgeRetry {
-    param([scriptblock]$Command, [int]$MaxAttempts = 4)
+    param([scriptblock]$Command, [int]$MaxAttempts = 4, [switch]$Create)
     for ($attempt = 1; ; $attempt++) {
         try {
             return & $Command
         } catch {
-            $transient = $_.Exception.Message -match 'server side error|try again|throttl|\b429\b|\b503\b|timed out|temporarily unavailable'
+            $message = $_.Exception.Message
+            $transient = $message -match 'server side error|try again|throttl|\b429\b|\b503\b|temporarily unavailable'
+            # After a timeout, Exchange may have processed the request. Reads
+            # and updates can be sent again, a creation would then fail on a
+            # duplicate.
+            if (-not $Create -and $message -match 'timed out') { $transient = $true }
             if (-not $transient -or $attempt -ge $MaxAttempts) { throw }
             Start-Sleep -Seconds (5 * $attempt)
         }

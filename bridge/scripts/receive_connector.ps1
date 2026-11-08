@@ -57,7 +57,7 @@ try {
                 throw "name must be <server>\<name>, got '$Identity'"
             }
             if (-not $splat.ContainsKey("Bindings")) { throw "bindings is required to create a receive connector" }
-            Invoke-BridgeRetry { New-ReceiveConnector -Name $parts[1] -Server $parts[0] -Usage Custom @splat | Out-Null }
+            Invoke-BridgeRetry -Create { New-ReceiveConnector -Name $parts[1] -Server $parts[0] -Usage Custom @splat | Out-Null }
             Read-BridgeConnector
         }
         "Update" {

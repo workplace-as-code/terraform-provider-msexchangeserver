@@ -8,7 +8,7 @@ description: |-
 
 ~> **Use at your own risk.** This is a community project, maintained on a best-effort basis and provided as is, without warranty (MIT license). Each release is tested by hand on a lab before it is published; nothing is tested continuously against an Exchange Server organization. Run `terraform plan` and try your configuration on a non-production organization before applying it to production.
 
-The Microsoft Exchange Server provider manages the configuration of an on-premises Exchange organization as code: mail flow rules, accepted and remote domains, Outlook on the web and mobile device policies, email address policies, retention policies and organization settings. Exchange Online is managed by a separate provider, [workplace-as-code/msexchangeonline](https://registry.terraform.io/providers/workplace-as-code/msexchangeonline/latest).
+The Microsoft Exchange Server provider manages the configuration of an on-premises Exchange organization as code: mail flow rules and connectors, accepted and remote domains, client and mobile device policies, email address and retention policies, organization settings, and the settings of each server (virtual directories, Outlook Anywhere, certificates, mailbox databases), Edge Transport servers included. Exchange Online is managed by a separate provider, [workplace-as-code/msexchangeonline](https://registry.terraform.io/providers/workplace-as-code/msexchangeonline/latest).
 
 The provider is **experimental**: see [Resources and availability](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/availability) for what has been tested.
 
@@ -17,7 +17,7 @@ When something fails, start with the [Troubleshooting guide](https://registry.te
 It opens an Exchange remote PowerShell session through scripts embedded in the provider binary. The machine running Terraform needs:
 
 - Windows, joined to the Active Directory domain of the Exchange organization, with Windows PowerShell 5.1 (built into Windows). No PowerShell module needs to be installed: the cmdlets come from the Exchange server.
-- An account in the least-privilege role group that `tools/new_role_group.ps1` creates, or in **Organization Management**. The connection uses Kerberos with the FQDN of an Exchange server, with the account's password or, with `auth_method = "integrated"`, as the account Terraform runs as (a CI runner service or a scheduled task). See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+- An account in the least-privilege role group that `tools/new_role_group.ps1` creates, or in **Organization Management**. The connection uses Kerberos with the FQDN of an Exchange server, with the account's password or, with `auth_method = "integrated"`, as the account Terraform runs as (a CI runner service or a scheduled task). With `auth_method = "certificate"`, it uses a client certificate mapped to the account, over HTTPS. With `servers`, the provider tries several Exchange servers in order and connects to the first one that answers. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Example Usage
 
@@ -25,7 +25,7 @@ It opens an Exchange remote PowerShell session through scripts embedded in the p
 
 Edge Transport servers are managed with a separate provider block whose `role` is `Edge`: see [Edge Transport servers](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication#edge-transport-servers).
 
-Every argument can also come from an `EXCHANGE_*` environment variable: `EXCHANGE_ROLE`, `EXCHANGE_SERVER`, `EXCHANGE_AUTH_METHOD`, `EXCHANGE_USERNAME` and `EXCHANGE_PASSWORD`. A value set in the provider block takes precedence over the environment.
+Every argument can also come from an `EXCHANGE_*` environment variable: `EXCHANGE_ROLE`, `EXCHANGE_SERVER`, `EXCHANGE_SERVERS`, `EXCHANGE_DOMAIN_CONTROLLER`, `EXCHANGE_AUTH_METHOD`, `EXCHANGE_USERNAME`, `EXCHANGE_PASSWORD` and `EXCHANGE_CERTIFICATE_THUMBPRINT`. A value set in the provider block takes precedence over the environment.
 
 ## Attributes left out of the configuration
 
@@ -51,6 +51,6 @@ The integration tests create, update, import and destroy every resource type in 
 
 | Provider | Terraform | Exchange Server | Server roles | PowerShell | Lab run |
 |---|---|---|---|---|---|
-| 0.1.1 | 1.17.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 (Windows Server 2022) | October 25, 2026 |
+| 0.5.1 | 1.17.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 (Windows Server 2022) | November 8, 2026 |
 
 Exchange Server 2016 and 2019 use the same remote PowerShell endpoint and should work, but are not tested: report any difference in an issue.

@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -180,6 +181,26 @@ func TestTimeSpanMinutes(t *testing.T) {
 	} {
 		if got := timeSpanMinutes(in); got != want {
 			t.Errorf("timeSpanMinutes(%v) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+// TestAdoptedNameDescription: renaming an adopted object adopts another one;
+// nothing is created.
+func TestAdoptedNameDescription(t *testing.T) {
+	for _, spec := range objectSpecs {
+		if !spec.adopted {
+			continue
+		}
+		var resp resource.SchemaResponse
+		(&objectResource{spec: spec}).Schema(context.Background(), resource.SchemaRequest{}, &resp)
+		name, ok := resp.Schema.Attributes["name"]
+		if !ok {
+			continue
+		}
+		if desc := name.GetMarkdownDescription(); strings.Contains(desc, "creates a new object") ||
+			!strings.Contains(desc, "adopts another object") {
+			t.Errorf("%s: name description %q", spec.typeName, desc)
 		}
 	}
 }

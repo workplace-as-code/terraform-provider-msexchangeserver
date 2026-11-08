@@ -62,7 +62,7 @@ try {
             if ($splat.ContainsKey("ExpirationTime") -and $splat["ExpirationTime"]) {
                 $add.ExpirationTime = [DateTimeOffset]::Parse($splat["ExpirationTime"], [cultureinfo]::InvariantCulture).LocalDateTime
             }
-            Invoke-BridgeRetry { & "Add-$Noun" @add | Out-Null }
+            Invoke-BridgeRetry -Create { & "Add-$Noun" @add | Out-Null }
             $entry = Wait-BridgeConsistent -Read { Find-BridgeEntry } -Check { param($e) $null -ne $e }
             if ($null -eq $entry) {
                 throw "The $Noun '$Identity' was added but is not listed under this IPRange: give the range as Get-$Noun shows it."
