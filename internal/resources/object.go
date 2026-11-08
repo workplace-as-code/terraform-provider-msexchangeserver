@@ -358,9 +358,14 @@ func (r *objectResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			MarkdownDescription: "The object name (same as `name`).",
 			PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		}
+		nameDesc := "The name. Changing it creates a new object."
+		if r.spec.adopted {
+			// An adopted object is never created nor removed.
+			nameDesc = "The name of the existing object. Changing it adopts another object and leaves this one as it is."
+		}
 		attrs["name"] = schema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: "The name. Changing it creates a new object.",
+			MarkdownDescription: nameDesc,
 			Validators:          []validator.String{stringvalidator.LengthAtLeast(1)},
 			// Exchange names are case-insensitive: a case-only change is not a new object.
 			PlanModifiers: []planmodifier.String{caseInsensitive(), stringplanmodifier.RequiresReplace()},
