@@ -72,20 +72,15 @@ Anti-spam agents and address rewriting of Edge Transport servers (`role = "Edge"
 
 ## Data sources
 
-| Data source |
-|---|
-| [`msexchangeserver_accepted_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/accepted_domain) |
-| [`msexchangeserver_accepted_domains`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/accepted_domains) |
-| [`msexchangeserver_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mailbox) |
-| [`msexchangeserver_organization_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/organization_config) |
-| [`msexchangeserver_remote_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_mailbox) |
-| [`msexchangeserver_email_address_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/email_address_policy) |
-| [`msexchangeserver_mobile_device_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mobile_device_mailbox_policy) |
-| [`msexchangeserver_owa_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/owa_mailbox_policy) |
-| [`msexchangeserver_remote_domain`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_domain) |
-| [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/retention_policy) |
-| [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/retention_policy_tag) |
-| [`msexchangeserver_transport_rule`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/transport_rule) |
+Every resource has a data source of the same name, which reads an object without managing it, except `msexchangeserver_content_filter_config`, `msexchangeserver_exchange_certificate_services`, `msexchangeserver_ip_allow_list_config`, `msexchangeserver_ip_block_list_config`, `msexchangeserver_ip_block_list_providers_config`, `msexchangeserver_recipient_filter_config`, `msexchangeserver_sender_filter_config` and `msexchangeserver_transport_config`.
+
+These data sources have no resource:
+
+| Data source | Notes |
+|---|---|
+| [`msexchangeserver_accepted_domains`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/accepted_domains) | Every accepted domain of the organization |
+| [`msexchangeserver_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/mailbox) | One mailbox, read only |
+| [`msexchangeserver_remote_mailbox`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/data-sources/remote_mailbox) | Hybrid: the on-premises object of a mailbox hosted in Exchange Online, read only |
 
 ## Singletons
 

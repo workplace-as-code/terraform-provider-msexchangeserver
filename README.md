@@ -1,6 +1,6 @@
 # Terraform Provider for Microsoft Exchange Server
 
-Manage an on-premises Exchange Server organization as code with Terraform: mail flow rules, accepted and remote domains, Outlook on the web and mobile device policies, email address policies, retention and organization settings.
+Manage an on-premises Exchange Server organization as code with Terraform: mail flow rules and connectors, accepted and remote domains, client and mobile device policies, email address and retention policies, organization settings, and the settings of each server (virtual directories, Outlook Anywhere, certificates, mailbox databases), Edge Transport servers included.
 
 [![CI](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/actions/workflows/ci.yml)
 [![Terraform Registry](https://img.shields.io/github/v/release/workplace-as-code/terraform-provider-msexchangeserver?label=registry&logo=terraform&color=7B42BC)](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest)
@@ -28,7 +28,7 @@ terraform {
   required_providers {
     msexchangeserver = {
       source  = "workplace-as-code/msexchangeserver"
-      version = "~> 0.1"
+      version = "~> 0.5"
     }
   }
 }
@@ -61,10 +61,9 @@ resource "msexchangeserver_remote_domain" "partner" {
 
 Data sources: `msexchangeserver_accepted_domain`, `msexchangeserver_accepted_domains`, `msexchangeserver_mailbox`, `msexchangeserver_organization_config`, `msexchangeserver_remote_mailbox`, `msexchangeserver_exchange_certificate`, and one for every named resource (`msexchangeserver_transport_rule`, `msexchangeserver_remote_domain`, ...): it reads an existing object by name with the attributes of the resource.
 
-### Related providers
+### Related provider
 
 - [workplace-as-code/msexchangeonline](https://github.com/workplace-as-code/terraform-provider-msexchangeonline): Exchange Online, built on the same PowerShell bridge.
-- [workplace-as-code/msteams](https://github.com/workplace-as-code/terraform-provider-msteams): Microsoft Teams policies and tenant settings.
 
 ---
 
@@ -72,7 +71,8 @@ Data sources: `msexchangeserver_accepted_domain`, `msexchangeserver_accepted_dom
 
 ### Requirements
 - Terraform >= 1.5, on a Windows machine joined to the Active Directory domain, with Windows PowerShell 5.1 (built into Windows)
-- The FQDN of an Exchange server, and an account in an Exchange role group. [`tools/new_role_group.ps1`](tools/new_role_group.ps1) creates one with only the roles the provider needs, instead of Organization Management (see the [Authentication guide](docs/guides/authentication.md))
+- The FQDN of an Exchange server (or several in `servers`, tried in order), and an account in an Exchange role group. [`tools/new_role_group.ps1`](tools/new_role_group.ps1) creates one with only the roles the provider needs, instead of Organization Management (see the [Authentication guide](docs/guides/authentication.md))
+- The account's password, the Kerberos identity Terraform runs as (`auth_method = "integrated"`), or a client certificate mapped to the account (`auth_method = "certificate"`, over HTTPS)
 
 The PowerShell bridge scripts are embedded in the provider binary: nothing else needs to be installed. The provider keeps a few PowerShell processes open during a run, so the remote session is opened once per process instead of once per resource (see [Performance tuning](#performance-tuning)).
 
