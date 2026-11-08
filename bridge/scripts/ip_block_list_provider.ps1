@@ -41,7 +41,7 @@ try {
         }
         "Create" {
             if (-not $splat.ContainsKey("LookupDomain")) { throw "lookup_domain is required to create a provider" }
-            Invoke-BridgeRetry { Add-IPBlockListProvider -Name $Identity @splat | Out-Null }
+            Invoke-BridgeRetry -Create { Add-IPBlockListProvider -Name $Identity @splat | Out-Null }
             Read-BridgeProvider
         }
         "Update" {

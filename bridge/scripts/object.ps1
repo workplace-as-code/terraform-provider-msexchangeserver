@@ -54,7 +54,7 @@ try {
         }
 
         "Create" {
-            Invoke-BridgeRetry { & "New-$Noun" -Name $Identity @splat | Out-Null }
+            Invoke-BridgeRetry -Create { & "New-$Noun" -Name $Identity @splat | Out-Null }
             Read-BridgeObject
         }
 
