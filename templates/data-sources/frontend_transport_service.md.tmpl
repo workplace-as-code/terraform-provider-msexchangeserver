@@ -1,0 +1,24 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Servers"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs `Get-FrontendTransportService` and `Set-FrontendTransportService`, and `Get-ExchangeServer`, from the **Exchange Servers** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only these cmdlets and those of the Transport service: the built-in role can also change every server setting. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Get-FrontendTransportService`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-frontendtransportservice?view=exchange-ps)

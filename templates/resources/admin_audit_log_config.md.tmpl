@@ -1,0 +1,41 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Organization"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs `Get-AdminAuditLogConfig` and `Set-AdminAuditLogConfig`, from the **Audit Logs** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only these cmdlets: the built-in role can also change mailboxes and search the audit logs. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Get-AdminAuditLogConfig`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-adminauditlogconfig?view=exchange-ps)
+- [`Set-AdminAuditLogConfig`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-adminauditlogconfig?view=exchange-ps)
+
+## Import
+
+The resource is a singleton. Import it with the ID `default`:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

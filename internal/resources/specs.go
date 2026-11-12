@@ -94,6 +94,30 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName:    "admin_audit_log_config",
+		noun:        "AdminAuditLogConfig",
+		singleton:   true,
+		description: "Manages administrator audit logging: which cmdlets run by administrators are recorded, and for how long",
+		notes: "Lowering `admin_audit_log_age_limit_days` deletes the older entries. A change can take up to 60 " +
+			"minutes to apply where an Exchange Management Shell is open. Mailbox audit logging is a setting of each " +
+			"mailbox: the provider does not manage it.",
+		fields: []field{
+			boolAttr("admin_audit_log_enabled", "AdminAuditLogEnabled", "Record the cmdlets run by administrators."),
+			daysAttr("admin_audit_log_age_limit_days", "AdminAuditLogAgeLimit", "Days the entries are kept.",
+				int64validator.Between(1, 24855)),
+			setAttr("admin_audit_log_cmdlets", "AdminAuditLogCmdlets",
+				"Cmdlets recorded, with wildcards (`*Mailbox*`). `[\"*\"]` records every cmdlet."),
+			setAttr("admin_audit_log_parameters", "AdminAuditLogParameters",
+				"Parameters recorded, with wildcards. `[\"*\"]` records every parameter."),
+			setAttr("admin_audit_log_excluded_cmdlets", "AdminAuditLogExcludedCmdlets",
+				"Cmdlets never recorded, with wildcards. Exchange refuses `*` alone."),
+			enumAttr("log_level", "LogLevel", "`Verbose` also records the old and new values of the changed properties.",
+				"None", "Verbose"),
+			boolAttr("test_cmdlet_logging_enabled", "TestCmdletLoggingEnabled",
+				"Record the Test- cmdlets too. They produce many entries."),
+		},
+	},
+	{
 		typeName:    "send_connector",
 		noun:        "SendConnector",
 		script:      "send_connector.ps1",
@@ -373,6 +397,42 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName: "transport_service",
+		noun:     "TransportService",
+		script:   "server_settings.ps1",
+		adopted:  true,
+		listBy:   "Name",
+		edge:     true,
+		description: "Manages the log settings of the Transport service of an Exchange server: message tracking, " +
+			"connectivity and SMTP protocol logs",
+		notes: "`name` is the server name or FQDN. With the Mailbox role, `name` is a Mailbox server: manage an Edge " +
+			"Transport server with a provider whose role is Edge. " + protocolLogNote + " On a Mailbox server, the " +
+			"message tracking directory limit applies to the logs of the Transport service and to those of the Mailbox " +
+			"Transport service, each: they can take twice the size.",
+		fields: append([]field{
+			boolAttr("message_tracking_log_enabled", "MessageTrackingLogEnabled", "Record message tracking logs."),
+			pathAttr("message_tracking_log_path", "MessageTrackingLogPath", "Folder of the message tracking logs."),
+			logAgeAttr("message_tracking_log_max_age_days", "MessageTrackingLogMaxAge", maxAgeDesc),
+			sizeAttr("message_tracking_log_max_directory_size_mb", "MessageTrackingLogMaxDirectorySize",
+				"Largest size, in megabytes, of the message tracking folder. `0` means unlimited."),
+			sizeAttr("message_tracking_log_max_file_size_mb", "MessageTrackingLogMaxFileSize",
+				"Largest size, in megabytes, of a message tracking log file.", int64validator.Between(1, 4096)),
+		}, transportLogFields("None")...),
+	},
+	{
+		typeName: "frontend_transport_service",
+		noun:     "FrontendTransportService",
+		script:   "server_settings.ps1",
+		adopted:  true,
+		listBy:   "Name",
+		description: "Manages the log settings of the Front End Transport service of an Exchange server: connectivity " +
+			"and SMTP protocol logs",
+		notes:  "`name` is the server name or FQDN. " + protocolLogNote,
+		fields: transportLogFields("Verbose"),
+	},
+	popImapSpec("pop_settings", "PopSettings", "POP3", "Pop3"),
+	popImapSpec("imap_settings", "ImapSettings", "IMAP4", "Imap4"),
+	{
 		typeName: "client_access_service",
 		noun:     "ClientAccessService",
 		script:   "virtual_directory.ps1",
@@ -386,6 +446,81 @@ var objectSpecs = []objectSpec{
 					"`https://autodiscover.contoso.com/Autodiscover/Autodiscover.xml`. An empty string clears it."),
 		},
 	},
+}
+
+// popImapSpec describes the POP3 or IMAP4 settings of a server (Set-PopSettings,
+// Set-ImapSettings): sign-in, certificate, bindings and connection limits.
+func popImapSpec(typeName, noun, protocol, service string) objectSpec {
+	return objectSpec{
+		typeName: typeName,
+		noun:     noun,
+		script:   "server_settings.ps1",
+		adopted:  true,
+		listBy:   "Name",
+		description: fmt.Sprintf("Manages the %s settings of an Exchange server: sign-in, certificate, bindings and "+
+			"connection limits", protocol),
+		notes: fmt.Sprintf("`name` is the server name or FQDN. Exchange applies a change once the Microsoft Exchange %s "+
+			"services of the server restart, which the provider does not do. The certificate is bound to %s with "+
+			"`msexchangeserver_exchange_certificate_services`.", service, protocol),
+		fields: []field{
+			enumAttr("login_type", "LoginType", "Sign-in method. `SecureLogin`, the Exchange default, accepts a "+
+				"clear-text password only on an encrypted connection.",
+				"PlainTextLogin", "PlainTextAuthentication", "SecureLogin"),
+			changedElsewhereAttr(stringAttr("x509_certificate_name", "X509CertificateName",
+				"Host name of the certificate used for SSL and TLS, such as `mail.contoso.com`. Binding a certificate to "+
+					"the service with `msexchangeserver_exchange_certificate_services` also sets it.")),
+			setAttr("internal_connection_settings", "InternalConnectionSettings",
+				"Host names, ports and encryption shown to clients inside the network, as `mail.contoso.com:995:SSL`."),
+			setAttr("external_connection_settings", "ExternalConnectionSettings",
+				"Host names, ports and encryption shown to clients on the internet, as `mail.contoso.com:995:SSL`."),
+			setAttr("ssl_bindings", "SSLBindings", "Addresses and ports of the SSL connections, as `0.0.0.0:995`."),
+			setAttr("unencrypted_or_tls_bindings", "UnencryptedOrTLSBindings",
+				"Addresses and ports of the unencrypted and TLS (STARTTLS) connections, as `0.0.0.0:110`."),
+			int64Attr("max_connections", "MaxConnections", "Largest number of connections to the server.",
+				int64validator.Between(1, 2147483647)),
+			int64Attr("max_connections_per_user", "MaxConnectionsPerUser", "Largest number of connections of one user.",
+				int64validator.Between(1, 2147483647)),
+			int64Attr("max_connection_from_single_ip", "MaxConnectionFromSingleIP",
+				"Largest number of connections from one IP address.", int64validator.Between(1, 2147483647)),
+		},
+	}
+}
+
+// protocolLogNote: the transport services have no switch for the SMTP
+// protocol logs, only their location and limits.
+const protocolLogNote = "SMTP protocol logging is turned on for each connector, with its `protocol_logging_level`."
+
+const maxAgeDesc = "Days after which log files are removed. `0` means no age limit."
+
+// transportLogFields are the connectivity and SMTP protocol log settings that
+// the Transport and Front End Transport services share. intraOrgDefault is the
+// Exchange default of the intra-organization connector logging.
+func transportLogFields(intraOrgDefault string) []field {
+	fields := []field{
+		boolAttr("connectivity_log_enabled", "ConnectivityLogEnabled", "Record connectivity logs (outgoing connections)."),
+		pathAttr("connectivity_log_path", "ConnectivityLogPath", "Folder of the connectivity logs."),
+		logAgeAttr("connectivity_log_max_age_days", "ConnectivityLogMaxAge", maxAgeDesc),
+		sizeAttr("connectivity_log_max_directory_size_mb", "ConnectivityLogMaxDirectorySize",
+			"Largest size, in megabytes, of the connectivity log folder. `0` means unlimited."),
+		sizeAttr("connectivity_log_max_file_size_mb", "ConnectivityLogMaxFileSize",
+			"Largest size, in megabytes, of a connectivity log file. `0` means unlimited."),
+	}
+	for _, dir := range []struct{ prefix, param, label string }{
+		{"send", "SendProtocolLog", "Send"},
+		{"receive", "ReceiveProtocolLog", "Receive"},
+	} {
+		fields = append(fields,
+			pathAttr(dir.prefix+"_protocol_log_path", dir.param+"Path", "Folder of the protocol logs of the "+dir.label+" connectors."),
+			logAgeAttr(dir.prefix+"_protocol_log_max_age_days", dir.param+"MaxAge", maxAgeDesc),
+			sizeAttr(dir.prefix+"_protocol_log_max_directory_size_mb", dir.param+"MaxDirectorySize",
+				"Largest size, in megabytes, of the folder of the protocol logs of the "+dir.label+" connectors. `0` means unlimited."),
+			sizeAttr(dir.prefix+"_protocol_log_max_file_size_mb", dir.param+"MaxFileSize",
+				"Largest size, in megabytes, of a protocol log file of the "+dir.label+" connectors. `0` means unlimited."),
+		)
+	}
+	return append(fields, enumAttr("intra_org_connector_protocol_logging_level", "IntraOrgConnectorProtocolLoggingLevel",
+		"Protocol logging of the connector that sends mail inside the organization, written to the folder of the Send "+
+			"connectors. `"+intraOrgDefault+"` by default.", "None", "Verbose"))
 }
 
 // edgeNote ends the description of the anti-spam settings of Edge Transport servers.

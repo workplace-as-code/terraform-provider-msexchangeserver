@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -62,6 +63,12 @@ type field struct {
 	forceNew   bool   // changing the value replaces the object
 	readOnly   bool   // shown, never set (see readOnlyAttr)
 	coupled    string // group of settings Exchange changes together (see coupledAttr)
+	// zeroTimeSpan: a daysField whose 0 Exchange stores as 00:00:00 (no age
+	// limit) and refuses as $null (see logAgeAttr).
+	zeroTimeSpan bool
+	nonEmpty     bool // stringField that refuses "" (see pathAttr)
+	// changedElsewhere: another resource changes it (see changedElsewhereAttr).
+	changedElsewhere bool
 }
 
 // coupledAttr puts f in a group of settings that Exchange changes together:
@@ -108,6 +115,41 @@ func coupledUnknown(fields []field, plan, state, config map[string]attr.Value) m
 	}
 	for _, f := range fields {
 		if f.coupled != "" && changed[f.coupled] && !isSet(config[f.name]) {
+			out[f.name] = f.unknownValue()
+		}
+	}
+	return out
+}
+
+// changedElsewhereAttr marks f as a setting that another resource changes:
+// binding a certificate to POP3 with msexchangeserver_exchange_certificate_services
+// sets X509CertificateName. Left out of the configuration, it is planned
+// unknown whenever the resource is updated (changedElsewhereUnknown): an apply
+// that binds the certificate and updates the settings would otherwise read
+// another value than planned.
+func changedElsewhereAttr(f field) field {
+	f.changedElsewhere = true
+	return f
+}
+
+// changedElsewhereUnknown returns the plan attributes with the unconfigured
+// changedElsewhere fields set to unknown when a configured attribute changes.
+func changedElsewhereUnknown(fields []field, plan, state, config map[string]attr.Value) map[string]attr.Value {
+	out := make(map[string]attr.Value, len(plan))
+	for k, v := range plan {
+		out[k] = v
+	}
+	updated := false
+	for _, f := range fields {
+		if p, s := plan[f.name], state[f.name]; isSet(config[f.name]) && p != nil && (s == nil || !p.Equal(s)) {
+			updated = true
+		}
+	}
+	if !updated {
+		return out
+	}
+	for _, f := range fields {
+		if f.changedElsewhere && !isSet(config[f.name]) {
 			out[f.name] = f.unknownValue()
 		}
 	}
@@ -183,6 +225,22 @@ func daysAttr(name, param, desc string, validators ...validator.Int64) field {
 
 // enumAttr is a string restricted to values, compared without regard to case.
 // The valid values are appended to the description.
+// pathAttr is a folder on the server. An empty string is refused: the script
+// would send $null, which turns a log off and makes Exchange log errors.
+func pathAttr(name, param, desc string) field {
+	f := stringAttr(name, param, desc)
+	f.nonEmpty = true
+	return f
+}
+
+// logAgeAttr is the maximum age of a log, in days: 0 means no age limit,
+// written as 00:00:00 because the log settings refuse $null.
+func logAgeAttr(name, param, desc string) field {
+	f := daysAttr(name, param, desc, int64validator.Between(0, 24855))
+	f.zeroTimeSpan = true
+	return f
+}
+
 func enumAttr(name, param, desc string, values ...string) field {
 	quoted := make([]string, len(values))
 	for i, v := range values {
@@ -296,6 +354,9 @@ func (f field) schemaAttribute() schema.Attribute {
 		if f.forceNew {
 			a.PlanModifiers = append(a.PlanModifiers, stringplanmodifier.RequiresReplaceIfConfigured())
 		}
+		if f.nonEmpty {
+			a.Validators = append(a.Validators, stringvalidator.LengthAtLeast(1))
+		}
 		return a
 	}
 }
@@ -396,7 +457,7 @@ func (r *objectResource) singletonID() string {
 // configured one (coupledUnknown). Only updates are concerned: a create reads
 // everything back anyway, and a destroy plans nothing.
 func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || !r.spec.hasCoupled() {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || !r.spec.hasPlanAdjustments() {
 		return
 	}
 	var plan, state, config types.Object
@@ -407,6 +468,7 @@ func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		return
 	}
 	attrs := coupledUnknown(r.spec.fields, plan.Attributes(), state.Attributes(), config.Attributes())
+	attrs = changedElsewhereUnknown(r.spec.fields, attrs, state.Attributes(), config.Attributes())
 	obj, diags := types.ObjectValue(r.spec.attrTypes(), attrs)
 	resp.Diagnostics.Append(diags...)
 	if !resp.Diagnostics.HasError() {
@@ -414,9 +476,11 @@ func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	}
 }
 
-func (s objectSpec) hasCoupled() bool {
+// hasPlanAdjustments reports whether ModifyPlan changes the plan of s: coupled
+// or changedElsewhere fields.
+func (s objectSpec) hasPlanAdjustments() bool {
 	for _, f := range s.fields {
-		if f.coupled != "" {
+		if f.coupled != "" || f.changedElsewhere {
 			return true
 		}
 	}
@@ -595,6 +659,8 @@ func (r *objectResource) writeValues(ctx context.Context, action string, plan, c
 			// Exchange time spans are written as d.hh:mm:ss; 0 (no limit) as null.
 			if days := v.(types.Int64).ValueInt64(); days > 0 {
 				values[f.param] = fmt.Sprintf("%d.00:00:00", days)
+			} else if f.zeroTimeSpan {
+				values[f.param] = "00:00:00"
 			} else {
 				values[f.param] = nil
 			}
@@ -675,7 +741,12 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Objec
 			n, _ := raw.(float64)
 			values[f.name] = types.Int64Value(int64(n))
 		case daysField:
-			values[f.name] = types.Int64Value(timeSpanDays(raw))
+			days := timeSpanDays(raw)
+			// A log age under a day is still a limit: 0 would mean none.
+			if days == 0 && f.zeroTimeSpan && timeSpanMinutes(raw) > 0 {
+				days = 1
+			}
+			values[f.name] = types.Int64Value(days)
 		case minutesField:
 			values[f.name] = types.Int64Value(timeSpanMinutes(raw))
 		case sizeField:

@@ -41,6 +41,21 @@ try {
     if ($Noun -eq "ExchangeCertificate" -and $null -ne $session) {
         $objects = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Identity } -ErrorAction Stop)
     }
+    # Get-PopSettings and Get-ImapSettings read the local server only: list
+    # the Client Access servers, whose names server_settings.ps1 takes.
+    if ($Noun -in "PopSettings", "ImapSettings") {
+        $objects = @(Invoke-BridgeRetry { Get-ExchangeServer } | Where-Object {
+            -not [bool](Get-BridgeProp $_ "IsEdgeServer" $false) -and [bool](Get-BridgeProp $_ "IsClientAccessServer" $false)
+        })
+    }
+    # On a Mailbox connection, Get-TransportService also returns the Edge
+    # servers, from the copy EdgeSync keeps in Active Directory:
+    # server_settings.ps1 refuses them there.
+    if ($Noun -eq "TransportService" -and $BridgeRole -ne "Edge") {
+        $edgeServers = @(Invoke-BridgeRetry { Get-ExchangeServer } | Where-Object { [bool](Get-BridgeProp $_ "IsEdgeServer" $false) } |
+            ForEach-Object { [string]$_.Name })
+        $objects = @($objects | Where-Object { $edgeServers -notcontains [string](Get-BridgeProp $_ "Name" "") })
+    }
     $ids = @(foreach ($object in $objects) { [string](Get-BridgeProp $object $Property "") })
     ConvertTo-Json -Compress -InputObject ([string[]]@($ids | Where-Object { $_ }))
 } catch {

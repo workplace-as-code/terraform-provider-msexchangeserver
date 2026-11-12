@@ -34,6 +34,7 @@ Remove-PSSession $session
 - **E-Mail Address Policies**
 - **Organization Configuration**
 - **Organization Transport Settings**
+- **POP3 And IMAP4 Protocols**
 - **Receive Connectors**
 - **Recipient Policies**
 - **Remote and Accepted Domains**
@@ -48,8 +49,10 @@ When a built-in role grants much more than the provider needs, the script create
 | `terraform-msexchangeserver Remote Mailboxes` | **View-Only Recipients** | `Get-RemoteMailbox` | Export mailbox diagnostic logs |
 | `terraform-msexchangeserver Virtual Directories` | **Exchange Virtual Directories** | `Get-` and `Set-` cmdlets of the OWA, ECP, EWS, ActiveSync, OAB, MAPI and Autodiscover virtual directories | Create and remove virtual directories, the PowerShell one included |
 | `terraform-msexchangeserver Client Access` | **Exchange Servers** | `Get-` and `Set-ClientAccessService`, `Get-` and `Set-OutlookAnywhere`, `Set-MapiVirtualDirectory` (for `-IISAuthenticationMethods`) | Change DAG membership, server component states and every server setting |
+| `terraform-msexchangeserver Transport Services` | **Exchange Servers** | `Get-ExchangeServer`, `Get-` and `Set-TransportService`, `Get-` and `Set-FrontendTransportService` | Change DAG membership, server component states and every server setting |
 | `terraform-msexchangeserver Databases` | **Databases** | `Get-` and `Set-MailboxDatabase` | Mount, dismount, move and remove databases |
 | `terraform-msexchangeserver Certificates` | **Exchange Server Certificates** | `Get-`, `Import-`, `Enable-` and `Remove-ExchangeCertificate` | Export private keys |
+| `terraform-msexchangeserver Audit Log` | **Audit Logs** | `Get-` and `Set-AdminAuditLogConfig` | Change mailboxes, bypass mailbox auditing and search the audit logs |
 
 The names above are the defaults, `<role group> <name>`. For a naming convention, `-RoleGroupName` names the role group, `-CustomRolePrefix` replaces the prefix of the custom roles (`-CustomRolePrefix CR-EXCH-TF-` gives `CR-EXCH-TF-Certificates`), and `-CustomRoleNames` names each custom role (`-CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }`). The provider does not depend on these names. After a rename, `-Apply -RemoveExtraRoles` deletes the old custom roles.
 

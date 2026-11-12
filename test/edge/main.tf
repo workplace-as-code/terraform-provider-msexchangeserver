@@ -27,6 +27,12 @@ variable "phase" {
   }
 }
 
+variable "connectivity_log_max_age_days" {
+  description = "Set by run.ps1: the original value plus one for the update, the original to restore. null leaves it unmanaged."
+  type        = number
+  default     = null
+}
+
 locals {
   updated = var.phase == "update"
 }
@@ -41,6 +47,13 @@ import {
 }
 
 resource "msexchangeserver_transport_config" "this" {}
+
+# The Transport service of the Edge server, adopted: run.ps1 raises its
+# connectivity log age by one day for the update and restores it.
+resource "msexchangeserver_transport_service" "this" {
+  name                          = var.edge_server
+  connectivity_log_max_age_days = var.connectivity_log_max_age_days
+}
 
 # Edge transport rules are local to the Edge server (EdgeSync does not copy
 # them). Quarantine only exists on Edge; the update switches to Reject, which

@@ -1,0 +1,1 @@
+terraform import msexchangeserver_frontend_transport_service.ex01 "EX01"

@@ -82,6 +82,15 @@ variable "oa_internal_client_authentication_method" {
   default     = null
 }
 
+variable "settings" {
+  description = <<-EOT
+    Set by run.ps1: the log, POP3, IMAP4 and audit settings of the update (each original value plus one) or
+    the originals to restore. An empty map leaves them unmanaged.
+  EOT
+  type        = map(number)
+  default     = {}
+}
+
 variable "restore" {
   description = "Set to true by run.ps1 to give IIS, POP, IMAP and the default SMTP certificate back to the original certificates."
   type        = bool
@@ -299,6 +308,38 @@ resource "msexchangeserver_mailbox_database" "test" {
   deleted_item_retention_days = local.updated ? (
     var.test_database_retention_days >= 30 ? var.test_database_retention_days - 1 : var.test_database_retention_days + 1
   ) : var.test_database_retention_days
+}
+
+# Log, POP3 and IMAP4 settings of the tested server, and the administrator
+# audit log: run.ps1 raises one value of each by one in the update phase (no
+# log or audit entry is removed) and restores the originals.
+resource "msexchangeserver_transport_service" "test" {
+  name                          = var.exchange_server
+  connectivity_log_max_age_days = lookup(var.settings, "transport_service", null)
+}
+
+resource "msexchangeserver_frontend_transport_service" "test" {
+  name                          = var.exchange_server
+  connectivity_log_max_age_days = lookup(var.settings, "frontend_transport_service", null)
+}
+
+resource "msexchangeserver_pop_settings" "test" {
+  name                     = var.exchange_server
+  max_connections_per_user = lookup(var.settings, "pop_settings", null)
+}
+
+resource "msexchangeserver_imap_settings" "test" {
+  name                     = var.exchange_server
+  max_connections_per_user = lookup(var.settings, "imap_settings", null)
+}
+
+import {
+  to = msexchangeserver_admin_audit_log_config.this
+  id = "default"
+}
+
+resource "msexchangeserver_admin_audit_log_config" "this" {
+  admin_audit_log_age_limit_days = lookup(var.settings, "admin_audit_log_config", null)
 }
 
 # ---------------------------------------------------------------------------
