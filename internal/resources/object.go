@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -62,6 +63,10 @@ type field struct {
 	forceNew   bool   // changing the value replaces the object
 	readOnly   bool   // shown, never set (see readOnlyAttr)
 	coupled    string // group of settings Exchange changes together (see coupledAttr)
+	// zeroTimeSpan: a daysField whose 0 Exchange stores as 00:00:00 (no age
+	// limit) and refuses as $null (see logAgeAttr).
+	zeroTimeSpan bool
+	nonEmpty     bool // stringField that refuses "" (see pathAttr)
 }
 
 // coupledAttr puts f in a group of settings that Exchange changes together:
@@ -183,6 +188,22 @@ func daysAttr(name, param, desc string, validators ...validator.Int64) field {
 
 // enumAttr is a string restricted to values, compared without regard to case.
 // The valid values are appended to the description.
+// pathAttr is a folder on the server. An empty string is refused: the script
+// would send $null, which turns a log off and makes Exchange log errors.
+func pathAttr(name, param, desc string) field {
+	f := stringAttr(name, param, desc)
+	f.nonEmpty = true
+	return f
+}
+
+// logAgeAttr is the maximum age of a log, in days: 0 means no age limit,
+// written as 00:00:00 because the log settings refuse $null.
+func logAgeAttr(name, param, desc string) field {
+	f := daysAttr(name, param, desc, int64validator.Between(0, 24855))
+	f.zeroTimeSpan = true
+	return f
+}
+
 func enumAttr(name, param, desc string, values ...string) field {
 	quoted := make([]string, len(values))
 	for i, v := range values {
@@ -295,6 +316,9 @@ func (f field) schemaAttribute() schema.Attribute {
 		a := optionalString(f.desc)
 		if f.forceNew {
 			a.PlanModifiers = append(a.PlanModifiers, stringplanmodifier.RequiresReplaceIfConfigured())
+		}
+		if f.nonEmpty {
+			a.Validators = append(a.Validators, stringvalidator.LengthAtLeast(1))
 		}
 		return a
 	}
@@ -595,6 +619,8 @@ func (r *objectResource) writeValues(ctx context.Context, action string, plan, c
 			// Exchange time spans are written as d.hh:mm:ss; 0 (no limit) as null.
 			if days := v.(types.Int64).ValueInt64(); days > 0 {
 				values[f.param] = fmt.Sprintf("%d.00:00:00", days)
+			} else if f.zeroTimeSpan {
+				values[f.param] = "00:00:00"
 			} else {
 				values[f.param] = nil
 			}

@@ -88,6 +88,7 @@ $ProviderRoles = @(
     "E-Mail Address Policies",
     "Organization Configuration",
     "Organization Transport Settings",
+    "POP3 And IMAP4 Protocols",
     "Receive Connectors",
     "Recipient Policies",
     "Remote and Accepted Domains",
@@ -106,7 +107,9 @@ $ProviderRoles = @(
 # - Exchange Virtual Directories: creates and removes virtual directories,
 #   the PowerShell one included, and changes Set-CASMailbox.
 # - Exchange Servers: DAG membership, server component states (maintenance
-#   mode), database copies and every server setting.
+#   mode), database copies and every server setting. It is also the parent of
+#   Transport Services: Transport Hygiene, the other role with
+#   Set-TransportService, changes every anti-spam setting.
 # - Databases: mounts, dismounts, moves and removes databases and mailboxes.
 # - Exchange Server Certificates: Export-ExchangeCertificate exports private keys.
 $CustomRoles = @(
@@ -153,6 +156,13 @@ $CustomRoles = @(
         "Set-MapiVirtualDirectory",
         "Set-OutlookAnywhere"
     ) },
+    @{ Name = "Transport Services"; Parent = "Exchange Servers"; Cmdlets = @(
+        "Get-ExchangeServer",
+        "Get-FrontendTransportService",
+        "Get-TransportService",
+        "Set-FrontendTransportService",
+        "Set-TransportService"
+    ) },
     @{ Name = "Databases"; Parent = "Databases"; Cmdlets = @(
         "Get-MailboxDatabase",
         "Set-MailboxDatabase"
@@ -193,6 +203,9 @@ $ProviderCmdlets = @(
     "Get-EcpVirtualDirectory",
     "Get-EmailAddressPolicy",
     "Get-ExchangeCertificate",
+    "Get-ExchangeServer",
+    "Get-FrontendTransportService",
+    "Get-ImapSettings",
     "Get-Mailbox",
     "Get-MailboxDatabase",
     "Get-MapiVirtualDirectory",
@@ -202,6 +215,7 @@ $ProviderCmdlets = @(
     "Get-OutlookAnywhere",
     "Get-OwaMailboxPolicy",
     "Get-OwaVirtualDirectory",
+    "Get-PopSettings",
     "Get-ReceiveConnector",
     "Get-RemoteDomain",
     "Get-RemoteMailbox",
@@ -240,6 +254,8 @@ $ProviderCmdlets = @(
     "Set-ClientAccessService",
     "Set-EcpVirtualDirectory",
     "Set-EmailAddressPolicy",
+    "Set-FrontendTransportService",
+    "Set-ImapSettings",
     "Set-MailboxDatabase",
     "Set-MapiVirtualDirectory",
     "Set-MobileDeviceMailboxPolicy",
@@ -248,6 +264,7 @@ $ProviderCmdlets = @(
     "Set-OutlookAnywhere",
     "Set-OwaMailboxPolicy",
     "Set-OwaVirtualDirectory",
+    "Set-PopSettings",
     "Set-ReceiveConnector",
     "Set-RemoteDomain",
     "Set-RetentionPolicy",
@@ -255,6 +272,7 @@ $ProviderCmdlets = @(
     "Set-SendConnector",
     "Set-TransportConfig",
     "Set-TransportRule",
+    "Set-TransportService",
     "Set-WebServicesVirtualDirectory"
 )
 

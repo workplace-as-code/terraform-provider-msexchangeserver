@@ -50,6 +50,8 @@ Objects that exist once per server, and mailbox databases: the resources adopt t
 | [`msexchangeserver_outlook_anywhere`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/outlook_anywhere) | Host names, authentication and SSL of Outlook Anywhere (`/Rpc`) |
 | [`msexchangeserver_client_access_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/client_access_service) | Autodiscover URL in Active Directory |
 | [`msexchangeserver_mailbox_database`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mailbox_database) | Quotas, retention and logging; never mounted, dismounted or removed |
+| [`msexchangeserver_transport_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/transport_service) | Message tracking, connectivity and protocol logs; Mailbox and Edge |
+| [`msexchangeserver_frontend_transport_service`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/frontend_transport_service) | Connectivity and protocol logs of the Front End Transport service |
 | [`msexchangeserver_exchange_certificate`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/exchange_certificate) | Imported from a PFX (write-only, Terraform 1.11 and later) and removed on destroy |
 | [`msexchangeserver_exchange_certificate_services`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/exchange_certificate_services) | IIS, SMTP, IMAP and POP; only ever added |
 

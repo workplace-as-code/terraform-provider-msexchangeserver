@@ -8,6 +8,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -203,4 +205,81 @@ func TestAdoptedNameDescription(t *testing.T) {
 			t.Errorf("%s: name description %q", spec.typeName, desc)
 		}
 	}
+}
+
+// A log age of 0 means no age limit: Exchange takes 00:00:00 and refuses
+// $null, unlike the other time spans, where 0 is written as $null.
+func TestZeroTimeSpanIsWrittenAsZero(t *testing.T) {
+	r := &objectResource{spec: objectSpec{typeName: "x", noun: "X", adopted: true, fields: []field{
+		logAgeAttr("connectivity_log_max_age_days", "ConnectivityLogMaxAge", "d"),
+		daysAttr("other_days", "OtherDays", "d"),
+	}}}
+	for days, want := range map[int64]any{0: "00:00:00", 45: "45.00:00:00"} {
+		plan, diags := types.ObjectValue(r.spec.attrTypes(), map[string]attr.Value{
+			"id": types.StringNull(), "name": types.StringValue("EX01"),
+			"connectivity_log_max_age_days": types.Int64Value(days), "other_days": types.Int64Value(0),
+		})
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		got, diags := r.writeValues(context.Background(), "Update", plan, plan)
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		if got["ConnectivityLogMaxAge"] != want {
+			t.Errorf("%d days: ConnectivityLogMaxAge = %v, want %v", days, got["ConnectivityLogMaxAge"], want)
+		}
+		if v, ok := got["OtherDays"]; !ok || v != nil {
+			t.Errorf("OtherDays = %v (sent %v), want nil", v, ok)
+		}
+	}
+	if got := timeSpanDays("00:00:00"); got != 0 {
+		t.Errorf("timeSpanDays(00:00:00) = %d, want 0", got)
+	}
+}
+
+func TestTransportServiceSpecs(t *testing.T) {
+	for typeName, edge := range map[string]bool{"transport_service": true, "frontend_transport_service": false} {
+		s := specByType(t, typeName)
+		if !s.adopted || s.scriptName() != "server_settings.ps1" || s.edge != edge {
+			t.Errorf("%s: adopted %v, script %s, edge %v; want adopted, server_settings.ps1, edge %v",
+				typeName, s.adopted, s.scriptName(), s.edge, edge)
+		}
+		// The Identity of every Front End Transport service is "Frontend".
+		if q := s.listQuery(); q.property != "Name" {
+			t.Errorf("%s: listed by %q, want Name", typeName, q.property)
+		}
+		for _, f := range s.fields {
+			if strings.HasSuffix(f.name, "_max_age_days") && !f.zeroTimeSpan {
+				t.Errorf("%s.%s: a log age must write 0 as 00:00:00", typeName, f.name)
+			}
+			if strings.HasSuffix(f.name, "_log_path") && !f.nonEmpty {
+				t.Errorf("%s.%s: an empty log path would disable the log with event log errors", typeName, f.name)
+			}
+			if f.name == "message_tracking_log_subject_logging_enabled" {
+				t.Errorf("%s: subject logging is out of scope", typeName)
+			}
+			if typeName == "frontend_transport_service" && strings.HasPrefix(f.name, "message_tracking_") {
+				t.Errorf("%s.%s: the Front End Transport service has no message tracking", typeName, f.name)
+			}
+		}
+	}
+}
+
+// A log path cannot be empty: the script would send $null, which disables the
+// log and makes Exchange log errors.
+func TestPathAttrRefusesEmpty(t *testing.T) {
+	a, ok := pathAttr("connectivity_log_path", "ConnectivityLogPath", "d").schemaAttribute().(schema.StringAttribute)
+	if !ok {
+		t.Fatal("pathAttr is not a string attribute")
+	}
+	req := validator.StringRequest{ConfigValue: types.StringValue("")}
+	for _, v := range a.Validators {
+		resp := &validator.StringResponse{}
+		v.ValidateString(context.Background(), req, resp)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	t.Error("an empty path passes validation")
 }

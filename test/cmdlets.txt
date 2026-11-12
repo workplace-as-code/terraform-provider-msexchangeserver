@@ -7,6 +7,9 @@ Get-ClientAccessService
 Get-EcpVirtualDirectory
 Get-EmailAddressPolicy
 Get-ExchangeCertificate
+Get-ExchangeServer
+Get-FrontendTransportService
+Get-ImapSettings
 Get-Mailbox
 Get-MailboxDatabase
 Get-MapiVirtualDirectory
@@ -16,6 +19,7 @@ Get-OrganizationConfig
 Get-OutlookAnywhere
 Get-OwaMailboxPolicy
 Get-OwaVirtualDirectory
+Get-PopSettings
 Get-ReceiveConnector
 Get-RemoteDomain
 Get-RemoteMailbox
@@ -54,6 +58,8 @@ Set-ActiveSyncVirtualDirectory
 Set-ClientAccessService
 Set-EcpVirtualDirectory
 Set-EmailAddressPolicy
+Set-FrontendTransportService
+Set-ImapSettings
 Set-MailboxDatabase
 Set-MapiVirtualDirectory
 Set-MobileDeviceMailboxPolicy
@@ -62,6 +68,7 @@ Set-OrganizationConfig
 Set-OutlookAnywhere
 Set-OwaMailboxPolicy
 Set-OwaVirtualDirectory
+Set-PopSettings
 Set-ReceiveConnector
 Set-RemoteDomain
 Set-RetentionPolicy
@@ -69,4 +76,5 @@ Set-RetentionPolicyTag
 Set-SendConnector
 Set-TransportConfig
 Set-TransportRule
+Set-TransportService
 Set-WebServicesVirtualDirectory

@@ -373,6 +373,40 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName: "transport_service",
+		noun:     "TransportService",
+		script:   "server_settings.ps1",
+		adopted:  true,
+		listBy:   "Name",
+		edge:     true,
+		description: "Manages the log settings of the Transport service of an Exchange server: message tracking, " +
+			"connectivity and SMTP protocol logs",
+		notes: "`name` is the server name or FQDN. With the Mailbox role, `name` is a Mailbox server: manage an Edge " +
+			"Transport server with a provider whose role is Edge. " + protocolLogNote + " On a Mailbox server, the " +
+			"message tracking directory limit applies to the logs of the Transport service and to those of the Mailbox " +
+			"Transport service, each: they can take twice the size.",
+		fields: append([]field{
+			boolAttr("message_tracking_log_enabled", "MessageTrackingLogEnabled", "Record message tracking logs."),
+			pathAttr("message_tracking_log_path", "MessageTrackingLogPath", "Folder of the message tracking logs."),
+			logAgeAttr("message_tracking_log_max_age_days", "MessageTrackingLogMaxAge", maxAgeDesc),
+			sizeAttr("message_tracking_log_max_directory_size_mb", "MessageTrackingLogMaxDirectorySize",
+				"Largest size, in megabytes, of the message tracking folder. `0` means unlimited."),
+			sizeAttr("message_tracking_log_max_file_size_mb", "MessageTrackingLogMaxFileSize",
+				"Largest size, in megabytes, of a message tracking log file.", int64validator.Between(1, 4096)),
+		}, transportLogFields("None")...),
+	},
+	{
+		typeName: "frontend_transport_service",
+		noun:     "FrontendTransportService",
+		script:   "server_settings.ps1",
+		adopted:  true,
+		listBy:   "Name",
+		description: "Manages the log settings of the Front End Transport service of an Exchange server: connectivity " +
+			"and SMTP protocol logs",
+		notes:  "`name` is the server name or FQDN. " + protocolLogNote,
+		fields: transportLogFields("Verbose"),
+	},
+	{
 		typeName: "client_access_service",
 		noun:     "ClientAccessService",
 		script:   "virtual_directory.ps1",
@@ -386,6 +420,43 @@ var objectSpecs = []objectSpec{
 					"`https://autodiscover.contoso.com/Autodiscover/Autodiscover.xml`. An empty string clears it."),
 		},
 	},
+}
+
+// protocolLogNote: the transport services have no switch for the SMTP
+// protocol logs, only their location and limits.
+const protocolLogNote = "SMTP protocol logging is turned on for each connector, with its `protocol_logging_level`."
+
+const maxAgeDesc = "Days after which log files are removed. `0` means no age limit."
+
+// transportLogFields are the connectivity and SMTP protocol log settings that
+// the Transport and Front End Transport services share. intraOrgDefault is the
+// Exchange default of the intra-organization connector logging.
+func transportLogFields(intraOrgDefault string) []field {
+	fields := []field{
+		boolAttr("connectivity_log_enabled", "ConnectivityLogEnabled", "Record connectivity logs (outgoing connections)."),
+		pathAttr("connectivity_log_path", "ConnectivityLogPath", "Folder of the connectivity logs."),
+		logAgeAttr("connectivity_log_max_age_days", "ConnectivityLogMaxAge", maxAgeDesc),
+		sizeAttr("connectivity_log_max_directory_size_mb", "ConnectivityLogMaxDirectorySize",
+			"Largest size, in megabytes, of the connectivity log folder. `0` means unlimited."),
+		sizeAttr("connectivity_log_max_file_size_mb", "ConnectivityLogMaxFileSize",
+			"Largest size, in megabytes, of a connectivity log file. `0` means unlimited."),
+	}
+	for _, dir := range []struct{ prefix, param, label string }{
+		{"send", "SendProtocolLog", "Send"},
+		{"receive", "ReceiveProtocolLog", "Receive"},
+	} {
+		fields = append(fields,
+			pathAttr(dir.prefix+"_protocol_log_path", dir.param+"Path", "Folder of the protocol logs of the "+dir.label+" connectors."),
+			logAgeAttr(dir.prefix+"_protocol_log_max_age_days", dir.param+"MaxAge", maxAgeDesc),
+			sizeAttr(dir.prefix+"_protocol_log_max_directory_size_mb", dir.param+"MaxDirectorySize",
+				"Largest size, in megabytes, of the folder of the protocol logs of the "+dir.label+" connectors. `0` means unlimited."),
+			sizeAttr(dir.prefix+"_protocol_log_max_file_size_mb", dir.param+"MaxFileSize",
+				"Largest size, in megabytes, of a protocol log file of the "+dir.label+" connectors. `0` means unlimited."),
+		)
+	}
+	return append(fields, enumAttr("intra_org_connector_protocol_logging_level", "IntraOrgConnectorProtocolLoggingLevel",
+		"Protocol logging of the connector that sends mail inside the organization, written to the folder of the Send "+
+			"connectors. `"+intraOrgDefault+"` by default.", "None", "Verbose"))
 }
 
 // edgeNote ends the description of the anti-spam settings of Edge Transport servers.
