@@ -466,8 +466,9 @@ func popImapSpec(typeName, noun, protocol, service string) objectSpec {
 			enumAttr("login_type", "LoginType", "Sign-in method. `SecureLogin`, the Exchange default, accepts a "+
 				"clear-text password only on an encrypted connection.",
 				"PlainTextLogin", "PlainTextAuthentication", "SecureLogin"),
-			stringAttr("x509_certificate_name", "X509CertificateName",
-				"Host name of the certificate used for SSL and TLS, such as `mail.contoso.com`."),
+			changedElsewhereAttr(stringAttr("x509_certificate_name", "X509CertificateName",
+				"Host name of the certificate used for SSL and TLS, such as `mail.contoso.com`. Binding a certificate to "+
+					"the service with `msexchangeserver_exchange_certificate_services` also sets it.")),
 			setAttr("internal_connection_settings", "InternalConnectionSettings",
 				"Host names, ports and encryption shown to clients inside the network, as `mail.contoso.com:995:SSL`."),
 			setAttr("external_connection_settings", "ExternalConnectionSettings",

@@ -40,7 +40,7 @@ output "ex01_imap_login_type" {
 - `max_connections_per_user` (Number) Largest number of connections of one user.
 - `ssl_bindings` (Set of String) Addresses and ports of the SSL connections, as `0.0.0.0:995`.
 - `unencrypted_or_tls_bindings` (Set of String) Addresses and ports of the unencrypted and TLS (STARTTLS) connections, as `0.0.0.0:110`.
-- `x509_certificate_name` (String) Host name of the certificate used for SSL and TLS, such as `mail.contoso.com`.
+- `x509_certificate_name` (String) Host name of the certificate used for SSL and TLS, such as `mail.contoso.com`. Binding a certificate to the service with `msexchangeserver_exchange_certificate_services` also sets it.
 
 ## Permissions
 

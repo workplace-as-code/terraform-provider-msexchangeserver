@@ -67,6 +67,8 @@ type field struct {
 	// limit) and refuses as $null (see logAgeAttr).
 	zeroTimeSpan bool
 	nonEmpty     bool // stringField that refuses "" (see pathAttr)
+	// changedElsewhere: another resource changes it (see changedElsewhereAttr).
+	changedElsewhere bool
 }
 
 // coupledAttr puts f in a group of settings that Exchange changes together:
@@ -113,6 +115,41 @@ func coupledUnknown(fields []field, plan, state, config map[string]attr.Value) m
 	}
 	for _, f := range fields {
 		if f.coupled != "" && changed[f.coupled] && !isSet(config[f.name]) {
+			out[f.name] = f.unknownValue()
+		}
+	}
+	return out
+}
+
+// changedElsewhereAttr marks f as a setting that another resource changes:
+// binding a certificate to POP3 with msexchangeserver_exchange_certificate_services
+// sets X509CertificateName. Left out of the configuration, it is planned
+// unknown whenever the resource is updated (changedElsewhereUnknown): an apply
+// that binds the certificate and updates the settings would otherwise read
+// another value than planned.
+func changedElsewhereAttr(f field) field {
+	f.changedElsewhere = true
+	return f
+}
+
+// changedElsewhereUnknown returns the plan attributes with the unconfigured
+// changedElsewhere fields set to unknown when a configured attribute changes.
+func changedElsewhereUnknown(fields []field, plan, state, config map[string]attr.Value) map[string]attr.Value {
+	out := make(map[string]attr.Value, len(plan))
+	for k, v := range plan {
+		out[k] = v
+	}
+	updated := false
+	for _, f := range fields {
+		if p, s := plan[f.name], state[f.name]; isSet(config[f.name]) && p != nil && (s == nil || !p.Equal(s)) {
+			updated = true
+		}
+	}
+	if !updated {
+		return out
+	}
+	for _, f := range fields {
+		if f.changedElsewhere && !isSet(config[f.name]) {
 			out[f.name] = f.unknownValue()
 		}
 	}
@@ -420,7 +457,7 @@ func (r *objectResource) singletonID() string {
 // configured one (coupledUnknown). Only updates are concerned: a create reads
 // everything back anyway, and a destroy plans nothing.
 func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || !r.spec.hasCoupled() {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || !r.spec.hasPlanAdjustments() {
 		return
 	}
 	var plan, state, config types.Object
@@ -431,6 +468,7 @@ func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		return
 	}
 	attrs := coupledUnknown(r.spec.fields, plan.Attributes(), state.Attributes(), config.Attributes())
+	attrs = changedElsewhereUnknown(r.spec.fields, attrs, state.Attributes(), config.Attributes())
 	obj, diags := types.ObjectValue(r.spec.attrTypes(), attrs)
 	resp.Diagnostics.Append(diags...)
 	if !resp.Diagnostics.HasError() {
@@ -438,9 +476,11 @@ func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	}
 }
 
-func (s objectSpec) hasCoupled() bool {
+// hasPlanAdjustments reports whether ModifyPlan changes the plan of s: coupled
+// or changedElsewhere fields.
+func (s objectSpec) hasPlanAdjustments() bool {
 	for _, f := range s.fields {
-		if f.coupled != "" {
+		if f.coupled != "" || f.changedElsewhere {
 			return true
 		}
 	}

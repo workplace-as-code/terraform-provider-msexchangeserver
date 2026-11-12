@@ -329,3 +329,36 @@ func TestAdminAuditLogConfigSpec(t *testing.T) {
 		}
 	}
 }
+
+// Binding a certificate to POP3 or IMAP4 (exchange_certificate_services)
+// changes X509CertificateName: when it is not configured, an update of the
+// settings plans it unknown, or the apply that does both would find another
+// value than planned.
+func TestCertificateNameUnknownOnUpdate(t *testing.T) {
+	spec := specByType(t, "pop_settings")
+	state := map[string]attr.Value{
+		"x509_certificate_name": types.StringValue("tf-ci-cert.example"), "max_connections_per_user": types.Int64Value(17),
+	}
+	plan := map[string]attr.Value{
+		"x509_certificate_name": types.StringValue("tf-ci-cert.example"), "max_connections_per_user": types.Int64Value(16),
+	}
+	config := map[string]attr.Value{"max_connections_per_user": types.Int64Value(16)}
+	got := changedElsewhereUnknown(spec.fields, plan, state, config)
+	if !got["x509_certificate_name"].IsUnknown() || got["max_connections_per_user"].IsUnknown() {
+		t.Errorf("got %v: want x509_certificate_name unknown, max_connections_per_user kept", got)
+	}
+
+	// No change: the plan stays as it is.
+	plan["max_connections_per_user"] = types.Int64Value(17)
+	if got := changedElsewhereUnknown(spec.fields, plan, state, config); got["x509_certificate_name"].IsUnknown() {
+		t.Error("x509_certificate_name became unknown without a change")
+	}
+
+	// Configured: Terraform manages it, it keeps the planned value.
+	plan["max_connections_per_user"] = types.Int64Value(16)
+	config["x509_certificate_name"] = types.StringValue("mail.contoso.com")
+	plan["x509_certificate_name"] = types.StringValue("mail.contoso.com")
+	if got := changedElsewhereUnknown(spec.fields, plan, state, config); got["x509_certificate_name"].IsUnknown() {
+		t.Error("a configured x509_certificate_name became unknown")
+	}
+}

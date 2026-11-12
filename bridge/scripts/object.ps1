@@ -31,6 +31,11 @@ $ErrorActionPreference = "Stop"
 $splat = ConvertFrom-BridgeValues $Values
 $props = @(ConvertFrom-BridgeJson $Properties)
 $identityArgs = if ($Identity) { @{ Identity = $Identity } } else { @{} }
+# A lower age limit makes Set-AdminAuditLogConfig ask whether to delete the
+# older entries, which -Confirm:$false does not answer: the non-interactive
+# bridge fails and Exchange writes a Watson dump. -Force answers yes, as the
+# configuration asks.
+if ($Noun -eq "AdminAuditLogConfig" -and $splat.Count -gt 0) { $splat["Force"] = $true }
 
 function Read-BridgeObject {
     param([string]$Name = $Identity)
