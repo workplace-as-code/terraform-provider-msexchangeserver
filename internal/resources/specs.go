@@ -406,6 +406,8 @@ var objectSpecs = []objectSpec{
 		notes:  "`name` is the server name or FQDN. " + protocolLogNote,
 		fields: transportLogFields("Verbose"),
 	},
+	popImapSpec("pop_settings", "PopSettings", "POP3", "Pop3"),
+	popImapSpec("imap_settings", "ImapSettings", "IMAP4", "Imap4"),
 	{
 		typeName: "client_access_service",
 		noun:     "ClientAccessService",
@@ -420,6 +422,43 @@ var objectSpecs = []objectSpec{
 					"`https://autodiscover.contoso.com/Autodiscover/Autodiscover.xml`. An empty string clears it."),
 		},
 	},
+}
+
+// popImapSpec describes the POP3 or IMAP4 settings of a server (Set-PopSettings,
+// Set-ImapSettings): sign-in, certificate, bindings and connection limits.
+func popImapSpec(typeName, noun, protocol, service string) objectSpec {
+	return objectSpec{
+		typeName: typeName,
+		noun:     noun,
+		script:   "server_settings.ps1",
+		adopted:  true,
+		listBy:   "Name",
+		description: fmt.Sprintf("Manages the %s settings of an Exchange server: sign-in, certificate, bindings and "+
+			"connection limits", protocol),
+		notes: fmt.Sprintf("`name` is the server name or FQDN. Exchange applies a change once the Microsoft Exchange %s "+
+			"services of the server restart, which the provider does not do. The certificate is bound to %s with "+
+			"`msexchangeserver_exchange_certificate_services`.", service, protocol),
+		fields: []field{
+			enumAttr("login_type", "LoginType", "Sign-in method. `SecureLogin`, the Exchange default, accepts a "+
+				"clear-text password only on an encrypted connection.",
+				"PlainTextLogin", "PlainTextAuthentication", "SecureLogin"),
+			stringAttr("x509_certificate_name", "X509CertificateName",
+				"Host name of the certificate used for SSL and TLS, such as `mail.contoso.com`."),
+			setAttr("internal_connection_settings", "InternalConnectionSettings",
+				"Host names, ports and encryption shown to clients inside the network, as `mail.contoso.com:995:SSL`."),
+			setAttr("external_connection_settings", "ExternalConnectionSettings",
+				"Host names, ports and encryption shown to clients on the internet, as `mail.contoso.com:995:SSL`."),
+			setAttr("ssl_bindings", "SSLBindings", "Addresses and ports of the SSL connections, as `0.0.0.0:995`."),
+			setAttr("unencrypted_or_tls_bindings", "UnencryptedOrTLSBindings",
+				"Addresses and ports of the unencrypted and TLS (STARTTLS) connections, as `0.0.0.0:110`."),
+			int64Attr("max_connections", "MaxConnections", "Largest number of connections to the server.",
+				int64validator.Between(1, 2147483647)),
+			int64Attr("max_connections_per_user", "MaxConnectionsPerUser", "Largest number of connections of one user.",
+				int64validator.Between(1, 2147483647)),
+			int64Attr("max_connection_from_single_ip", "MaxConnectionFromSingleIP",
+				"Largest number of connections from one IP address.", int64validator.Between(1, 2147483647)),
+		},
+	}
 }
 
 // protocolLogNote: the transport services have no switch for the SMTP

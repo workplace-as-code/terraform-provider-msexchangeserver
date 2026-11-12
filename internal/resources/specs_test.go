@@ -283,3 +283,22 @@ func TestPathAttrRefusesEmpty(t *testing.T) {
 	}
 	t.Error("an empty path passes validation")
 }
+
+func TestPopImapSpecs(t *testing.T) {
+	for _, typeName := range []string{"pop_settings", "imap_settings"} {
+		s := specByType(t, typeName)
+		if !s.adopted || s.edge || s.scriptName() != "server_settings.ps1" || s.listQuery().property != "Name" {
+			t.Errorf("%s: adopted %v, edge %v, script %s, listed by %q; want adopted, Mailbox only, server_settings.ps1, Name",
+				typeName, s.adopted, s.edge, s.scriptName(), s.listQuery().property)
+		}
+		var loginType *field
+		for i := range s.fields {
+			if s.fields[i].name == "login_type" {
+				loginType = &s.fields[i]
+			}
+		}
+		if loginType == nil || strings.Join(loginType.values, ",") != "PlainTextLogin,PlainTextAuthentication,SecureLogin" {
+			t.Errorf("%s: login_type = %+v", typeName, loginType)
+		}
+	}
+}

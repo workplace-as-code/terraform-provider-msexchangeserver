@@ -1,0 +1,24 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Servers"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs `Get-PopSettings` and `Set-PopSettings`, from the **POP3 And IMAP4 Protocols** management role, and `Get-ExchangeServer`. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`Get-PopSettings`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-popsettings?view=exchange-ps)

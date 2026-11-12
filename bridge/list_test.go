@@ -26,6 +26,7 @@ function Get-TransportService {
     $stubServers | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Identity = $_.Name } }
 }
 function Get-PopSettings { [pscustomobject]@{ Name = "1"; Identity = "EX01\1" } }
+function Get-ImapSettings { [pscustomobject]@{ Name = "1"; Identity = "EX01\1" } }
 `
 
 // runList runs list.ps1 for noun and property with the stub and returns its
@@ -78,5 +79,16 @@ func TestListTransportServiceOnEdge(t *testing.T) {
 	code, stdout, stderr := runList(t, "TransportService", "Name", "Edge")
 	if code != 0 || stdout != `["EDGE01"]` {
 		t.Errorf("exit %d, stdout %s, stderr %q: want [\"EDGE01\"]", code, stdout, stderr)
+	}
+}
+
+// Get-PopSettings reads the local server only: the list names every Client
+// Access server instead, without the Edge server.
+func TestListPopSettingsNamesTheServers(t *testing.T) {
+	for _, noun := range []string{"PopSettings", "ImapSettings"} {
+		code, stdout, stderr := runList(t, noun, "Name", "Mailbox")
+		if code != 0 || stdout != `["EX01","EX02"]` {
+			t.Errorf("%s: exit %d, stdout %s, stderr %q: want [\"EX01\",\"EX02\"]", noun, code, stdout, stderr)
+		}
 	}
 }
