@@ -94,6 +94,30 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName:    "admin_audit_log_config",
+		noun:        "AdminAuditLogConfig",
+		singleton:   true,
+		description: "Manages administrator audit logging: which cmdlets run by administrators are recorded, and for how long",
+		notes: "Lowering `admin_audit_log_age_limit_days` deletes the older entries. A change can take up to 60 " +
+			"minutes to apply where an Exchange Management Shell is open. Mailbox audit logging is a setting of each " +
+			"mailbox: the provider does not manage it.",
+		fields: []field{
+			boolAttr("admin_audit_log_enabled", "AdminAuditLogEnabled", "Record the cmdlets run by administrators."),
+			daysAttr("admin_audit_log_age_limit_days", "AdminAuditLogAgeLimit", "Days the entries are kept.",
+				int64validator.Between(1, 24855)),
+			setAttr("admin_audit_log_cmdlets", "AdminAuditLogCmdlets",
+				"Cmdlets recorded, with wildcards (`*Mailbox*`). `[\"*\"]` records every cmdlet."),
+			setAttr("admin_audit_log_parameters", "AdminAuditLogParameters",
+				"Parameters recorded, with wildcards. `[\"*\"]` records every parameter."),
+			setAttr("admin_audit_log_excluded_cmdlets", "AdminAuditLogExcludedCmdlets",
+				"Cmdlets never recorded, with wildcards. Exchange refuses `*` alone."),
+			enumAttr("log_level", "LogLevel", "`Verbose` also records the old and new values of the changed properties.",
+				"None", "Verbose"),
+			boolAttr("test_cmdlet_logging_enabled", "TestCmdletLoggingEnabled",
+				"Record the Test- cmdlets too. They produce many entries."),
+		},
+	},
+	{
 		typeName:    "send_connector",
 		noun:        "SendConnector",
 		script:      "send_connector.ps1",

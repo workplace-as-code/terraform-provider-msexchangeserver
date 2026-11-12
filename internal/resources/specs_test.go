@@ -302,3 +302,30 @@ func TestPopImapSpecs(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminAuditLogConfigSpec(t *testing.T) {
+	s := specByType(t, "admin_audit_log_config")
+	if !s.singleton || s.edge || s.edgeOnly || s.identity != "" {
+		t.Errorf("singleton %v, edge %v/%v, identity %q: want a Mailbox singleton read without -Identity",
+			s.singleton, s.edge, s.edgeOnly, s.identity)
+	}
+	for _, f := range s.fields {
+		switch f.name {
+		case "admin_audit_log_age_limit_days":
+			// Exchange purges the whole audit log at 0.
+			for value, wantError := range map[int64]bool{0: true, 1: false, 24855: false} {
+				resp := &validator.Int64Response{}
+				for _, v := range f.validators {
+					v.ValidateInt64(context.Background(), validator.Int64Request{ConfigValue: types.Int64Value(value)}, resp)
+				}
+				if resp.Diagnostics.HasError() != wantError {
+					t.Errorf("age limit %d: error %v, want %v", value, resp.Diagnostics.HasError(), wantError)
+				}
+			}
+		case "admin_audit_log_cmdlets", "admin_audit_log_parameters", "admin_audit_log_excluded_cmdlets":
+			if f.kind != setField {
+				t.Errorf("%s is not a set", f.name)
+			}
+		}
+	}
+}

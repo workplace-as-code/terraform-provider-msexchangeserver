@@ -3,6 +3,7 @@ Enable-ExchangeCertificate
 Enable-TransportRule
 Get-AcceptedDomain
 Get-ActiveSyncVirtualDirectory
+Get-AdminAuditLogConfig
 Get-ClientAccessService
 Get-EcpVirtualDirectory
 Get-EmailAddressPolicy
@@ -55,6 +56,7 @@ Remove-TransportRule
 Set-ADServerSettings
 Set-AcceptedDomain
 Set-ActiveSyncVirtualDirectory
+Set-AdminAuditLogConfig
 Set-ClientAccessService
 Set-EcpVirtualDirectory
 Set-EmailAddressPolicy

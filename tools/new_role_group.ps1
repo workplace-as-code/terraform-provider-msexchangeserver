@@ -112,6 +112,7 @@ $ProviderRoles = @(
 #   Set-TransportService, changes every anti-spam setting.
 # - Databases: mounts, dismounts, moves and removes databases and mailboxes.
 # - Exchange Server Certificates: Export-ExchangeCertificate exports private keys.
+# - Audit Logs: Set-Mailbox, mailbox audit bypass and the audit log searches.
 $CustomRoles = @(
     @{ Name = "Retention"; Parent = "Retention Management"; Cmdlets = @(
         "Get-Mailbox",
@@ -167,6 +168,10 @@ $CustomRoles = @(
         "Get-MailboxDatabase",
         "Set-MailboxDatabase"
     ) },
+    @{ Name = "Audit Log"; Parent = "Audit Logs"; Cmdlets = @(
+        "Get-AdminAuditLogConfig",
+        "Set-AdminAuditLogConfig"
+    ) },
     @{ Name = "Certificates"; Parent = "Exchange Server Certificates"; Cmdlets = @(
         "Enable-ExchangeCertificate",
         "Get-ExchangeCertificate",
@@ -199,6 +204,7 @@ $ProviderCmdlets = @(
     "Enable-TransportRule",
     "Get-AcceptedDomain",
     "Get-ActiveSyncVirtualDirectory",
+    "Get-AdminAuditLogConfig",
     "Get-ClientAccessService",
     "Get-EcpVirtualDirectory",
     "Get-EmailAddressPolicy",
@@ -251,6 +257,7 @@ $ProviderCmdlets = @(
     "Set-ADServerSettings",
     "Set-AcceptedDomain",
     "Set-ActiveSyncVirtualDirectory",
+    "Set-AdminAuditLogConfig",
     "Set-ClientAccessService",
     "Set-EcpVirtualDirectory",
     "Set-EmailAddressPolicy",
