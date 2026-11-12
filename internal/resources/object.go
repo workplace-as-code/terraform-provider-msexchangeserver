@@ -741,7 +741,12 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Objec
 			n, _ := raw.(float64)
 			values[f.name] = types.Int64Value(int64(n))
 		case daysField:
-			values[f.name] = types.Int64Value(timeSpanDays(raw))
+			days := timeSpanDays(raw)
+			// A log age under a day is still a limit: 0 would mean none.
+			if days == 0 && f.zeroTimeSpan && timeSpanMinutes(raw) > 0 {
+				days = 1
+			}
+			values[f.name] = types.Int64Value(days)
 		case minutesField:
 			values[f.name] = types.Int64Value(timeSpanMinutes(raw))
 		case sizeField:

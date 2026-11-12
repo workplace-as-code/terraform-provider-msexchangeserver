@@ -362,3 +362,21 @@ func TestCertificateNameUnknownOnUpdate(t *testing.T) {
 		t.Error("a configured x509_certificate_name became unknown")
 	}
 }
+
+// A log age under a day (12:00:00, set by hand) is a limit: it reads as 1 day,
+// never as 0, which means no age limit and would remove it on the next write.
+func TestLogAgeUnderADayReadsAsOneDay(t *testing.T) {
+	r := &objectResource{spec: objectSpec{typeName: "x", noun: "X", adopted: true, fields: []field{
+		logAgeAttr("connectivity_log_max_age_days", "ConnectivityLogMaxAge", "d"),
+	}}}
+	for raw, want := range map[string]string{"12:00:00": "1", "00:00:00": "0", "30.00:00:00": "30"} {
+		got, diags := r.fromAPI(mustObject(t, r, map[string]string{"name": "EX01"}),
+			[]byte(`{"Name":"EX01","ConnectivityLogMaxAge":"`+raw+`"}`))
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		if v := got.Attributes()["connectivity_log_max_age_days"].String(); v != want {
+			t.Errorf("%s reads as %s days, want %s", raw, v, want)
+		}
+	}
+}
