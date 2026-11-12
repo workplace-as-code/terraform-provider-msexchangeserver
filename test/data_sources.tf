@@ -127,3 +127,51 @@ data "msexchangeserver_outlook_anywhere" "test" {
     }
   }
 }
+
+data "msexchangeserver_transport_service" "test" {
+  name       = msexchangeserver_transport_service.test.name
+  depends_on = [msexchangeserver_transport_service.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.id == msexchangeserver_transport_service.test.id
+      error_message = "The data source read another object than the test one."
+    }
+  }
+}
+
+data "msexchangeserver_frontend_transport_service" "test" {
+  name       = msexchangeserver_frontend_transport_service.test.name
+  depends_on = [msexchangeserver_frontend_transport_service.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.id == msexchangeserver_frontend_transport_service.test.id
+      error_message = "The data source read another object than the test one."
+    }
+  }
+}
+
+data "msexchangeserver_pop_settings" "test" {
+  name       = msexchangeserver_pop_settings.test.name
+  depends_on = [msexchangeserver_pop_settings.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.id == msexchangeserver_pop_settings.test.id
+      error_message = "The data source read another object than the test one."
+    }
+  }
+}
+
+data "msexchangeserver_imap_settings" "test" {
+  name       = msexchangeserver_imap_settings.test.name
+  depends_on = [msexchangeserver_imap_settings.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.id == msexchangeserver_imap_settings.test.id
+      error_message = "The data source read another object than the test one."
+    }
+  }
+}

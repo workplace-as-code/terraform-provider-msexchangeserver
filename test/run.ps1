@@ -102,18 +102,23 @@ $Created = [ordered]@{
     "msexchangeserver_receive_connector.test"       = "$((($Server -split '\.')[0]).ToUpper())\TF-CI-Receive"
 }
 # Organization-wide objects imported by main.tf and never destroyed.
-$Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this")
+$Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this",
+    "msexchangeserver_admin_audit_log_config.this")
 # Per-server objects adopted by main.tf (they exist on every server), imported
 # by server name and never destroyed.
 $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
     "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory", "outlook_anywhere",
-    "client_access_service", "mailbox_database") | ForEach-Object { "msexchangeserver_$_.test" }
+    "client_access_service", "mailbox_database", "transport_service", "frontend_transport_service", "pop_settings",
+    "imap_settings") | ForEach-Object { "msexchangeserver_$_.test" }
 # Adopted objects whose settings the update phase changes: applied again with
 # phase=create to put back their original values. restore=true gives IIS, POP,
 # IMAP and the default SMTP certificate back to the certificates that had them
 # before the test.
 $RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-target=msexchangeserver_outlook_anywhere.test",
     "-target=msexchangeserver_mailbox_database.test",
+    "-target=msexchangeserver_transport_service.test", "-target=msexchangeserver_frontend_transport_service.test",
+    "-target=msexchangeserver_pop_settings.test", "-target=msexchangeserver_imap_settings.test",
+    "-target=msexchangeserver_admin_audit_log_config.this",
     "-target=msexchangeserver_exchange_certificate_services.original",
     "-target=msexchangeserver_exchange_certificate_services.original_iis",
     "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
@@ -124,7 +129,8 @@ $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbo
     "retention_policy_tag", "organization_config", "transport_config", "owa_virtual_directory", "ecp_virtual_directory",
     "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
     "outlook_anywhere", "client_access_service", "mailbox_database", "send_connector", "receive_connector", "exchange_certificate",
-    "exchange_certificate_services")
+    "exchange_certificate_services", "transport_service", "frontend_transport_service", "pop_settings", "imap_settings",
+    "admin_audit_log_config")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -465,6 +471,27 @@ try {
     $RestoreTargets += @("-var", "oab_basic_authentication=$($oabBasic.ToString().ToLower())",
         "-var", "oa_internal_client_authentication_method=$oaMethod")
 
+    # Log, POP3, IMAP4 and audit settings: the update raises each original
+    # value by one, which removes no log and no audit entry. A log without
+    # age limit (0) stays unmanaged: 1 would remove its older files.
+    $originals = [ordered]@{
+        transport_service          = Get-StateAttr "msexchangeserver_transport_service.test" "connectivity_log_max_age_days"
+        frontend_transport_service = Get-StateAttr "msexchangeserver_frontend_transport_service.test" "connectivity_log_max_age_days"
+        pop_settings               = Get-StateAttr "msexchangeserver_pop_settings.test" "max_connections_per_user"
+        imap_settings              = Get-StateAttr "msexchangeserver_imap_settings.test" "max_connections_per_user"
+        admin_audit_log_config     = Get-StateAttr "msexchangeserver_admin_audit_log_config.this" "admin_audit_log_age_limit_days"
+    }
+    $updated = @(); $restored = @()
+    foreach ($key in $originals.Keys) {
+        $value = [long]$originals[$key]
+        if ($value -lt 1 -or $value -ge 24855) { Write-Info "Original $key value $value left unchanged"; continue }
+        $updated += "$key=$($value + 1)"
+        $restored += "$key=$value"
+    }
+    Write-Info "Original values: $($restored -join ', ')"
+    $AuthUpdate += @("-var", "settings={$($updated -join ',')}")
+    $RestoreTargets += @("-var", "settings={$($restored -join ',')}")
+
     Write-Step "Update of every test object (phase=update)"
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update @AuthUpdate) "terraform apply (update)"
     Write-Pass "Update"
@@ -548,7 +575,7 @@ try {
     Write-Host ""
     Write-Host "All Exchange Server integration tests passed." -ForegroundColor Green
     Write-Host "  Created, updated, imported and destroyed: $($Created.Count) resources"
-    Write-Host "  Imported read-only: organization_config, transport_config"
+    Write-Host "  Imported read-only: organization_config, transport_config; imported and restored: admin_audit_log_config"
     Write-Host "  Data sources: accepted_domain, accepted_domains, organization_config"
 } finally {
     if ($restorePending) {

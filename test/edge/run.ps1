@@ -67,16 +67,18 @@ $Created = [ordered]@{
 }
 # Imported by main.tf and never destroyed.
 $Keep = @("transport_config", "content_filter_config", "sender_filter_config", "recipient_filter_config",
-    "ip_allow_list_config", "ip_block_list_config", "ip_block_list_providers_config") | ForEach-Object { "msexchangeserver_$_.this" }
+    "ip_allow_list_config", "ip_block_list_config", "ip_block_list_providers_config", "transport_service") |
+    ForEach-Object { "msexchangeserver_$_.this" }
 # Imported settings whose values the update phase changes: applied again with
 # phase=create to put back the Exchange defaults, also when the run stops early.
-$RestoreTargets = @("content_filter_config", "sender_filter_config", "recipient_filter_config") |
+$RestoreTargets = @("content_filter_config", "sender_filter_config", "recipient_filter_config", "transport_service") |
     ForEach-Object { "-target=msexchangeserver_$_.this" }
 $restorePending = $false
 # Resource types available on Edge, listed by terraform query.
 $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "transport_config", "receive_connector",
     "content_filter_config", "sender_filter_config", "recipient_filter_config", "ip_allow_list_config", "ip_block_list_config",
-    "ip_block_list_providers_config", "ip_allow_list_entry", "ip_block_list_entry", "ip_block_list_provider", "address_rewrite_entry")
+    "ip_block_list_providers_config", "ip_allow_list_entry", "ip_block_list_entry", "ip_block_list_provider", "address_rewrite_entry",
+    "transport_service")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -133,6 +135,17 @@ function Assert-NoChanges([string]$Label, [string[]]$Extra = @()) {
 # means the object is gone (the error then only goes to the log): any other
 # failure, such as a connection or read error, stops the test, or an object
 # left behind would go unnoticed.
+function Get-StateAttr([string]$Address, [string]$Name) {
+    # Not through Invoke-Tf: the whole state would go to the log.
+    $json = @(& terraform show -json -no-color 2>$null)
+    if ($LASTEXITCODE -ne 0) { Stop-Test "terraform show failed (exit $LASTEXITCODE)" }
+    # Windows PowerShell 5.1: assign the parsed JSON first, then use it.
+    $state = ($json -join "`n") | ConvertFrom-Json
+    $resource = @($state.values.root_module.resources | Where-Object { $_.address -eq $Address }) | Select-Object -First 1
+    if ($null -eq $resource) { Stop-Test "$Address is not in the state" }
+    $resource.values.$Name
+}
+
 function Import-Orphans {
     $targets = @()
     foreach ($address in $Created.Keys) {
@@ -333,11 +346,21 @@ try {
     Write-Pass "Apply"
     Assert-NoChanges "Drift check after apply"
 
+    # The update raises the connectivity log age by one day (no log is
+    # removed); a log without age limit (0) stays unmanaged.
+    $logAge = [long](Get-StateAttr "msexchangeserver_transport_service.this" "connectivity_log_max_age_days")
+    $AgeUpdate = @()
+    if ($logAge -ge 1 -and $logAge -lt 24855) {
+        $AgeUpdate = @("-var", "connectivity_log_max_age_days=$($logAge + 1)")
+        $RestoreTargets += @("-var", "connectivity_log_max_age_days=$logAge")
+    }
+    Write-Info "Original connectivity log age: $logAge days"
+
     Write-Step "Update (phase=update)"
     $restorePending = $true
-    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update) "terraform apply (update)"
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update @AgeUpdate) "terraform apply (update)"
     Write-Pass "Update"
-    Assert-NoChanges "Drift check after update" @("-var", "phase=update")
+    Assert-NoChanges "Drift check after update" (@("-var", "phase=update") + $AgeUpdate)
 
     # -----------------------------------------------------------------------
     Write-Step "Import of the test objects"
@@ -386,8 +409,8 @@ try {
 
     # -----------------------------------------------------------------------
     Write-Step "terraform destroy"
-    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the anti-spam settings"
-    Assert-NoChanges "Anti-spam settings restored" $RestoreTargets
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color @RestoreTargets) "Restoring the anti-spam and log settings"
+    Assert-NoChanges "Anti-spam and log settings restored" $RestoreTargets
     $restorePending = $false
     foreach ($address in $Keep) { Assert-Tf (Invoke-Tf state rm -no-color $address) "terraform state rm $address" }
     $targets = @($Created.Keys | ForEach-Object { "-target=$_" })
