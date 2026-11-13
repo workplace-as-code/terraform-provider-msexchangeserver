@@ -31,6 +31,7 @@ Remove-PSSession $session
 
 [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) creates a role group with only the management roles that contain the cmdlets the provider runs, and adds the write account to it. Unlike Organization Management, the group cannot create, delete or change mailboxes and other recipients, nor create or remove servers, databases or virtual directories. Its roles:
 
+- **Address Lists**
 - **E-Mail Address Policies**
 - **Journaling**
 - **Organization Configuration**

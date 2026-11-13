@@ -103,10 +103,17 @@ $Created = [ordered]@{
     "msexchangeserver_journal_rule.test"            = "TF-CI-Journal"
     "msexchangeserver_activesync_device_access_rule.test" = "TF-CI-Device (DeviceModel)"
     "msexchangeserver_authentication_policy.test"   = "TF-CI-AuthPolicy"
+    "msexchangeserver_address_list.test"            = "TF-CI-AL"
+    "msexchangeserver_address_list.child"           = "TF-CI-AL-Child"
+    "msexchangeserver_address_list.rooms"           = "TF-CI-Rooms"
+    "msexchangeserver_global_address_list.test"     = "TF-CI-GAL"
+    "msexchangeserver_offline_address_book.test"    = "TF-CI-OAB"
+    "msexchangeserver_address_book_policy.test"     = "TF-CI-ABP"
 }
 # Organization-wide objects imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this",
-    "msexchangeserver_admin_audit_log_config.this", "msexchangeserver_activesync_organization_settings.this")
+    "msexchangeserver_admin_audit_log_config.this", "msexchangeserver_activesync_organization_settings.this",
+    "msexchangeserver_global_address_list.default", "msexchangeserver_offline_address_book.original")
 # Per-server objects adopted by main.tf (they exist on every server), imported
 # by server name and never destroyed.
 $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
@@ -123,6 +130,7 @@ $RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-tar
     "-target=msexchangeserver_pop_settings.test", "-target=msexchangeserver_imap_settings.test",
     "-target=msexchangeserver_admin_audit_log_config.this", "-target=msexchangeserver_organization_config.this",
     "-target=msexchangeserver_activesync_organization_settings.this",
+    "-target=msexchangeserver_offline_address_book.original",
     "-target=msexchangeserver_exchange_certificate_services.original",
     "-target=msexchangeserver_exchange_certificate_services.original_iis",
     "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
@@ -135,7 +143,7 @@ $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbo
     "outlook_anywhere", "client_access_service", "mailbox_database", "send_connector", "receive_connector", "exchange_certificate",
     "exchange_certificate_services", "transport_service", "frontend_transport_service", "pop_settings", "imap_settings",
     "admin_audit_log_config", "journal_rule", "activesync_organization_settings", "activesync_device_access_rule",
-    "authentication_policy")
+    "authentication_policy", "address_list", "global_address_list", "offline_address_book", "address_book_policy")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -327,6 +335,7 @@ try {
         # as X509Certificate2 objects, without their services.
         $certificates = @(Invoke-Command -Session $session -ScriptBlock { Get-ExchangeCertificate | Select-Object Thumbprint, Services, Subject, IsSelfSigned })
         $transport = @(Invoke-Command -Session $session -ScriptBlock { Get-TransportService | Select-Object Name, InternalTransportCertificateThumbprint })
+        $oabs = @(Invoke-Command -Session $session -ScriptBlock { Get-OfflineAddressBook | Select-Object Name, IsDefault })
         # Only to show the version: the provider's role group has no Get-ExchangeServer.
         $servers = @(try { Invoke-Command -Session $session -ScriptBlock { Get-ExchangeServer } -ErrorAction Stop } catch { })
         # The cmdlets the account can run, for the preflight below.
@@ -368,6 +377,11 @@ try {
     $originalSmtp = [string](@($transport | Where-Object { "$($_.Name)" -eq ($Server -split '\.')[0] }) | Select-Object -First 1).InternalTransportCertificateThumbprint
     if (-not $originalSmtp -or $originalSmtp -eq $testCertificate) { Stop-Test "No default SMTP certificate found for $Server besides the test one: enable SMTP on its certificate first" }
     Write-Pass "Default SMTP certificate: $originalSmtp"
+    # The default offline address book, which the update phase replaces with the
+    # test one and run.ps1 makes the default again.
+    $originalOab = @($oabs | Where-Object { "$($_.IsDefault)" -eq "True" -and "$($_.Name)" -ne "TF-CI-OAB" }) | Select-Object -First 1
+    if ($null -eq $originalOab) { Stop-Test "No default offline address book found besides TF-CI-OAB: make the original one the default first" }
+    Write-Pass "Default offline address book: $($originalOab.Name)"
     # The HTTPS certificate of the server, which the update phase replaces with
     # the test one: the Exchange servers' self-signed certificate is enabled for
     # IIS too, for the back-end site, so prefer one issued by a CA.
@@ -419,6 +433,7 @@ try {
     $env:TF_VAR_original_certificate = "$($original.Thumbprint)"
     $env:TF_VAR_original_iis_certificate = "$($originalIis.Thumbprint)"
     $env:TF_VAR_original_smtp_certificate = $originalSmtp
+    $env:TF_VAR_original_default_oab = "$($originalOab.Name)"
     if ($OneShot) { $env:EXCHANGE_BRIDGE_MODE = "oneshot" } else { Remove-Item Env:EXCHANGE_BRIDGE_MODE -ErrorAction SilentlyContinue }
     if ($DebugLog) { $env:TF_LOG = "DEBUG"; $env:TF_LOG_PATH = Join-Path $PSScriptRoot "terraform-debug-$stamp.log" }
     Write-Pass "Development override for the provider: $tfrc"
@@ -533,6 +548,11 @@ try {
     # imported policy has none, so the first apply only records it. It applies
     # nothing, since no setting of the policy changes.
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update "-target=msexchangeserver_email_address_policy.test") "Recording apply_to_recipients after import"
+    # An imported filter holds Exchange's text, with parentheses: the first apply
+    # writes the same filter in the configured form.
+    $filters = @("address_list.test", "address_list.child", "address_list.rooms", "global_address_list.test") |
+        ForEach-Object { "-target=msexchangeserver_$_" }
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update @filters) "Recording the filters after import"
     Assert-NoChanges "Drift check after import" @("-var", "phase=update")
 
     # -----------------------------------------------------------------------

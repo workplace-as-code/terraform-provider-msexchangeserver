@@ -82,6 +82,11 @@ variable "oa_internal_client_authentication_method" {
   default     = null
 }
 
+variable "original_default_oab" {
+  description = "The default offline address book before the test, made the default again by the restore. Set by run.ps1."
+  type        = string
+}
+
 variable "texts" {
   description = <<-EOT
     Set by run.ps1: the default authentication policy and the ActiveSync quarantine text of the update, or the
@@ -388,6 +393,71 @@ resource "msexchangeserver_authentication_policy" "test" {
   name                   = "TF-CI-AuthPolicy"
   block_legacy_auth_pop  = true
   block_legacy_auth_imap = local.updated
+}
+
+# ---------------------------------------------------------------------------
+# Address books: lists of test recipients only (CustomAttribute15 TF-CI, which
+# no recipient has). The update switches the OAB from web distribution to the
+# server's OAB virtual directory and makes it the default; the restore makes
+# the original default OAB the default again. The default GAL is imported
+# without change (any change is refused at plan time).
+# ---------------------------------------------------------------------------
+
+resource "msexchangeserver_address_list" "test" {
+  name             = "TF-CI-AL"
+  display_name     = local.updated ? "TF-CI-AL updated" : "TF-CI-AL"
+  recipient_filter = local.updated ? "CustomAttribute15 -eq 'TF-CI' -and RecipientType -eq 'UserMailbox'" : "CustomAttribute15 -eq 'TF-CI'"
+}
+
+resource "msexchangeserver_address_list" "child" {
+  name             = "TF-CI-AL-Child"
+  container        = msexchangeserver_address_list.test.name
+  recipient_filter = "CustomAttribute15 -eq 'TF-CI-Child'"
+}
+
+resource "msexchangeserver_address_list" "rooms" {
+  name             = "TF-CI-Rooms"
+  recipient_filter = "CustomAttribute15 -eq 'TF-CI' -and RecipientDisplayType -eq 'ConferenceRoomMailbox'"
+}
+
+resource "msexchangeserver_global_address_list" "test" {
+  name             = "TF-CI-GAL"
+  recipient_filter = local.updated ? "CustomAttribute15 -eq 'TF-CI' -or CustomAttribute15 -eq 'TF-CI-Child'" : "CustomAttribute15 -eq 'TF-CI'"
+}
+
+resource "msexchangeserver_offline_address_book" "test" {
+  name                            = "TF-CI-OAB"
+  address_lists                   = [msexchangeserver_global_address_list.test.name]
+  global_web_distribution_enabled = !local.updated
+  virtual_directories             = local.updated ? ["${local.server_name}\\OAB (Default Web Site)"] : null
+  is_default                      = local.updated ? true : null
+}
+
+resource "msexchangeserver_address_book_policy" "test" {
+  name                 = "TF-CI-ABP"
+  global_address_list  = msexchangeserver_global_address_list.test.name
+  offline_address_book = msexchangeserver_offline_address_book.test.name
+  room_list            = msexchangeserver_address_list.rooms.name
+  address_lists        = local.updated ? [msexchangeserver_address_list.test.name, msexchangeserver_address_list.child.name] : [msexchangeserver_address_list.test.name]
+}
+
+import {
+  to = msexchangeserver_global_address_list.default
+  id = "Default Global Address List"
+}
+
+resource "msexchangeserver_global_address_list" "default" {
+  name = "Default Global Address List"
+}
+
+import {
+  to = msexchangeserver_offline_address_book.original
+  id = var.original_default_oab
+}
+
+resource "msexchangeserver_offline_address_book" "original" {
+  name       = var.original_default_oab
+  is_default = var.restore ? true : null
 }
 
 # ---------------------------------------------------------------------------

@@ -175,3 +175,27 @@ data "msexchangeserver_imap_settings" "test" {
     }
   }
 }
+
+data "msexchangeserver_address_book_policy" "test" {
+  name       = msexchangeserver_address_book_policy.test.name
+  depends_on = [msexchangeserver_address_book_policy.test]
+
+  lifecycle {
+    postcondition {
+      condition     = self.global_address_list == "TF-CI-GAL" && self.room_list == "TF-CI-Rooms"
+      error_message = "The data source did not read the references of the policy as names."
+    }
+  }
+}
+
+data "msexchangeserver_address_list" "child" {
+  name       = msexchangeserver_address_list.child.name
+  depends_on = [msexchangeserver_address_list.child]
+
+  lifecycle {
+    postcondition {
+      condition     = self.container == "TF-CI-AL"
+      error_message = "The data source did not read the container of the nested list."
+    }
+  }
+}

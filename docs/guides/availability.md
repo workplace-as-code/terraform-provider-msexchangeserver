@@ -38,6 +38,10 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy) | Messaging records management |
 | [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy_tag) | |
 | [`msexchangeserver_admin_audit_log_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/admin_audit_log_config) | Singleton: administrator audit logging |
+| [`msexchangeserver_address_list`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/address_list) | Members change when a recipient next changes or with `Update-AddressList` |
+| [`msexchangeserver_global_address_list`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/global_address_list) | The default GAL cannot be changed |
+| [`msexchangeserver_offline_address_book`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/offline_address_book) | The default offline address book cannot be deleted |
+| [`msexchangeserver_address_book_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/address_book_policy) | Assigning the policy to mailboxes is not managed |
 | [`msexchangeserver_authentication_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/authentication_policy) | Exchange 2019 CU2 and later; the organization default is set on `msexchangeserver_organization_config` |
 
 ## Servers

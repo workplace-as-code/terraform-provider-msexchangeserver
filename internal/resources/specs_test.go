@@ -55,7 +55,7 @@ func TestObjectSpecs(t *testing.T) {
 func TestFromAPIConvertsTimeSpansAndKeepsCase(t *testing.T) {
 	r := &objectResource{spec: objectSpecs[0]} // retention_policy_tag
 	plan, diags := r.fromAPI(mustObject(t, r, map[string]string{"name": "Archive", "retention_action": "movetoarchive"}),
-		[]byte(`{"Name":"Archive","RetentionAction":"MoveToArchive","AgeLimitForRetention":"730.00:00:00","RetentionEnabled":true}`))
+		[]byte(`{"Name":"Archive","RetentionAction":"MoveToArchive","AgeLimitForRetention":"730.00:00:00","RetentionEnabled":true}`), nil)
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
@@ -93,6 +93,8 @@ func mustObject(t *testing.T, r *objectResource, values map[string]string) types
 			attrs[name] = types.Int64Null()
 		case types.StringType:
 			attrs[name] = types.StringNull()
+		case types.SetType{ElemType: types.StringType}:
+			attrs[name] = types.SetNull(types.StringType)
 		default:
 			attrs[name] = types.ListNull(types.StringType)
 		}
@@ -157,7 +159,7 @@ func TestFromAPIConvertsTransportLimits(t *testing.T) {
 	}
 	plan, diags := r.fromAPI(mustObject(t, r, nil), []byte(`{"Name":"","MaxSendSize":"35 MB (36,700,160 bytes)",`+
 		`"MaxReceiveSize":"Unlimited","MaxRecipientEnvelopeLimit":"500","SafetyNetHoldTime":"2.00:00:00",`+
-		`"InternalSMTPServers":["10.0.0.10","10.0.1.0/24"],"TLSSendDomainSecureList":""}`))
+		`"InternalSMTPServers":["10.0.0.10","10.0.1.0/24"],"TLSSendDomainSecureList":""}`), nil)
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
@@ -371,7 +373,7 @@ func TestLogAgeUnderADayReadsAsOneDay(t *testing.T) {
 	}}}
 	for raw, want := range map[string]string{"12:00:00": "1", "00:00:00": "0", "30.00:00:00": "30"} {
 		got, diags := r.fromAPI(mustObject(t, r, map[string]string{"name": "EX01"}),
-			[]byte(`{"Name":"EX01","ConnectivityLogMaxAge":"`+raw+`"}`))
+			[]byte(`{"Name":"EX01","ConnectivityLogMaxAge":"`+raw+`"}`), nil)
 		if diags.HasError() {
 			t.Fatal(diags)
 		}

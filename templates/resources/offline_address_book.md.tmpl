@@ -1,0 +1,43 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Address books"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs the **Address Lists** management role, which the role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) and the **Organization Management** role group include. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-OfflineAddressBook`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-offlineaddressbook?view=exchange-ps)
+- [`Get-OfflineAddressBook`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-offlineaddressbook?view=exchange-ps)
+- [`Set-OfflineAddressBook`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-offlineaddressbook?view=exchange-ps)
+- [`Remove-OfflineAddressBook`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-offlineaddressbook?view=exchange-ps)
+
+## Import
+
+Import using the offline address book name:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).
