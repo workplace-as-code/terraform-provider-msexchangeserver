@@ -46,3 +46,6 @@ certs/
 # Integration test runs (test/run.ps1)
 test/run-*.log
 test/terraform-debug-*.log
+
+# Variable files written by test/run.ps1
+test/texts-*.tfvars.json
