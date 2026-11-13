@@ -94,6 +94,24 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName:    "journal_rule",
+		noun:        "JournalRule",
+		script:      "journal_rule.ps1",
+		description: "Manages a journal rule, which sends a report of the matching messages to an archive",
+		notes: "`journal_email_address` is required to create a rule. Journal rules need Exchange Enterprise client " +
+			"access licenses. Exchange sends the journal reports it cannot deliver to " +
+			"`msexchangeserver_transport_config.journaling_report_ndr_to`.",
+		fields: []field{
+			stringAttr("journal_email_address", "JournalEmailAddress",
+				"Address that receives the journal reports: a journaling mailbox or an archiving system."),
+			stringAttr("recipient", "Recipient",
+				"SMTP address of the mailbox, contact or group whose messages are journaled. `\"\"` journals every recipient."),
+			enumAttr("scope", "Scope", "Messages the rule journals: all of them, internal ones or external ones.",
+				"Global", "Internal", "External"),
+			boolAttr("enabled", "Enabled", "Whether the rule is enabled. A rule created disabled never journals a message."),
+		},
+	},
+	{
 		typeName:    "admin_audit_log_config",
 		noun:        "AdminAuditLogConfig",
 		singleton:   true,

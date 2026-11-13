@@ -380,3 +380,23 @@ func TestLogAgeUnderADayReadsAsOneDay(t *testing.T) {
 		}
 	}
 }
+
+func TestJournalRuleSpec(t *testing.T) {
+	s := specByType(t, "journal_rule")
+	if s.scriptName() != "journal_rule.ps1" || s.singleton || s.adopted || s.edge {
+		t.Errorf("script %s, singleton %v, adopted %v, edge %v: want a Mailbox object on journal_rule.ps1",
+			s.scriptName(), s.singleton, s.adopted, s.edge)
+	}
+	names := map[string]field{}
+	for _, f := range s.fields {
+		names[f.name] = f
+	}
+	for _, n := range []string{"journal_email_address", "recipient", "scope", "enabled"} {
+		if _, ok := names[n]; !ok {
+			t.Errorf("no field %s", n)
+		}
+	}
+	if got := strings.Join(names["scope"].values, ","); got != "Global,Internal,External" {
+		t.Errorf("scope values %s", got)
+	}
+}

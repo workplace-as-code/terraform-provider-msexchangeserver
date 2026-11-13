@@ -23,6 +23,7 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_transport_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/transport_config) | Singleton: organization-wide transport settings |
 | [`msexchangeserver_send_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/send_connector) | Not on Edge (EdgeSync manages them) |
 | [`msexchangeserver_receive_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/receive_connector) | Mailbox and Edge |
+| [`msexchangeserver_journal_rule`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/journal_rule) | Needs Exchange Enterprise client access licenses |
 
 ## Clients, recipients and organization
 

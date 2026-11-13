@@ -1,5 +1,7 @@
+Disable-JournalRule
 Disable-TransportRule
 Enable-ExchangeCertificate
+Enable-JournalRule
 Enable-TransportRule
 Get-AcceptedDomain
 Get-ActiveSyncVirtualDirectory
@@ -11,6 +13,7 @@ Get-ExchangeCertificate
 Get-ExchangeServer
 Get-FrontendTransportService
 Get-ImapSettings
+Get-JournalRule
 Get-Mailbox
 Get-MailboxDatabase
 Get-MapiVirtualDirectory
@@ -34,6 +37,7 @@ Get-WebServicesVirtualDirectory
 Import-ExchangeCertificate
 New-AcceptedDomain
 New-EmailAddressPolicy
+New-JournalRule
 New-MobileDeviceMailboxPolicy
 New-OwaMailboxPolicy
 New-ReceiveConnector
@@ -45,6 +49,7 @@ New-TransportRule
 Remove-AcceptedDomain
 Remove-EmailAddressPolicy
 Remove-ExchangeCertificate
+Remove-JournalRule
 Remove-MobileDeviceMailboxPolicy
 Remove-OwaMailboxPolicy
 Remove-ReceiveConnector
@@ -62,6 +67,7 @@ Set-EcpVirtualDirectory
 Set-EmailAddressPolicy
 Set-FrontendTransportService
 Set-ImapSettings
+Set-JournalRule
 Set-MailboxDatabase
 Set-MapiVirtualDirectory
 Set-MobileDeviceMailboxPolicy

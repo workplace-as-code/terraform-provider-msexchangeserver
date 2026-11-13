@@ -1,0 +1,45 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Mail flow"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs the **Journaling** management role, which the role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) and the **Organization Management** role group include. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-JournalRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-journalrule?view=exchange-ps)
+- [`Get-JournalRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-journalrule?view=exchange-ps)
+- [`Set-JournalRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-journalrule?view=exchange-ps)
+- [`Remove-JournalRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-journalrule?view=exchange-ps)
+- [`Enable-JournalRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/enable-journalrule?view=exchange-ps)
+- [`Disable-JournalRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/disable-journalrule?view=exchange-ps)
+
+## Import
+
+Import using the rule name:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

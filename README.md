@@ -53,7 +53,7 @@ resource "msexchangeserver_remote_domain" "partner" {
 
 | Category | Resources |
 |---|---|
-| Mail flow | `msexchangeserver_transport_rule`, `msexchangeserver_accepted_domain`, `msexchangeserver_remote_domain`, `msexchangeserver_transport_config`, `msexchangeserver_send_connector`, `msexchangeserver_receive_connector` |
+| Mail flow | `msexchangeserver_transport_rule`, `msexchangeserver_accepted_domain`, `msexchangeserver_remote_domain`, `msexchangeserver_transport_config`, `msexchangeserver_send_connector`, `msexchangeserver_receive_connector`, `msexchangeserver_journal_rule` |
 | Clients and devices | `msexchangeserver_owa_mailbox_policy`, `msexchangeserver_mobile_device_mailbox_policy` |
 | Organization | `msexchangeserver_organization_config`, `msexchangeserver_email_address_policy`, `msexchangeserver_retention_policy`, `msexchangeserver_retention_policy_tag`, `msexchangeserver_admin_audit_log_config` |
 | Servers | `msexchangeserver_owa_virtual_directory`, `msexchangeserver_ecp_virtual_directory`, `msexchangeserver_web_services_virtual_directory`, `msexchangeserver_activesync_virtual_directory`, `msexchangeserver_oab_virtual_directory`, `msexchangeserver_mapi_virtual_directory`, `msexchangeserver_outlook_anywhere`, `msexchangeserver_client_access_service`, `msexchangeserver_mailbox_database`, `msexchangeserver_transport_service`, `msexchangeserver_frontend_transport_service`, `msexchangeserver_pop_settings`, `msexchangeserver_imap_settings`, `msexchangeserver_exchange_certificate`, `msexchangeserver_exchange_certificate_services` |

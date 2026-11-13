@@ -86,6 +86,7 @@ $ErrorActionPreference = "Stop"
 # same roles (a unit test compares them).
 $ProviderRoles = @(
     "E-Mail Address Policies",
+    "Journaling",
     "Organization Configuration",
     "Organization Transport Settings",
     "Receive Connectors",
@@ -206,8 +207,10 @@ $ReadRoleGroup = "View-Only Organization Management"
 # Every Exchange cmdlet run by the provider's bridge scripts (bridge/scripts).
 # A unit test (tools/tools_test.go) fails when this list drifts from the scripts.
 $ProviderCmdlets = @(
+    "Disable-JournalRule",
     "Disable-TransportRule",
     "Enable-ExchangeCertificate",
+    "Enable-JournalRule",
     "Enable-TransportRule",
     "Get-AcceptedDomain",
     "Get-ActiveSyncVirtualDirectory",
@@ -219,6 +222,7 @@ $ProviderCmdlets = @(
     "Get-ExchangeServer",
     "Get-FrontendTransportService",
     "Get-ImapSettings",
+    "Get-JournalRule",
     "Get-Mailbox",
     "Get-MailboxDatabase",
     "Get-MapiVirtualDirectory",
@@ -242,6 +246,7 @@ $ProviderCmdlets = @(
     "Import-ExchangeCertificate",
     "New-AcceptedDomain",
     "New-EmailAddressPolicy",
+    "New-JournalRule",
     "New-MobileDeviceMailboxPolicy",
     "New-OwaMailboxPolicy",
     "New-ReceiveConnector",
@@ -253,6 +258,7 @@ $ProviderCmdlets = @(
     "Remove-AcceptedDomain",
     "Remove-EmailAddressPolicy",
     "Remove-ExchangeCertificate",
+    "Remove-JournalRule",
     "Remove-MobileDeviceMailboxPolicy",
     "Remove-OwaMailboxPolicy",
     "Remove-ReceiveConnector",
@@ -270,6 +276,7 @@ $ProviderCmdlets = @(
     "Set-EmailAddressPolicy",
     "Set-FrontendTransportService",
     "Set-ImapSettings",
+    "Set-JournalRule",
     "Set-MailboxDatabase",
     "Set-MapiVirtualDirectory",
     "Set-MobileDeviceMailboxPolicy",
