@@ -134,8 +134,8 @@ var objectSpecs = []objectSpec{
 		description: "Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by " +
 			"protocol for the users it applies to",
 		notes: "Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (`Set-User`, out of the " +
-			"provider's scope) and, as the organization's `default_authentication_policy`, to every other user. Exchange " +
-			"refuses to remove the default policy. A change can take up to 30 minutes to apply.",
+			"provider's scope) and, as the organization's `default_authentication_policy`, to every other user. Removing " +
+			"the default policy leaves the organization without one. A change can take up to 30 minutes to apply.",
 		fields: authenticationPolicyFields(),
 	},
 	{

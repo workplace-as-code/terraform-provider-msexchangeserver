@@ -234,6 +234,11 @@ if ($duplicates.Count -gt 0) { throw "Several custom roles would have the same n
 # The built-in role group of the read account, and its read role group.
 $ReadRoleGroup = "View-Only Organization Management"
 if (-not $ReadRoleGroupName) { $ReadRoleGroupName = "$RoleGroupName-read" }
+# -RemoveExtraRoles strips from the read role group every role but its own:
+# it must never be the write group or the built-in one (-eq ignores case).
+if ($ReadRoleGroupName -eq $RoleGroupName -or $ReadRoleGroupName -eq $ReadRoleGroup) {
+    throw "-ReadRoleGroupName must name a group of its own, not '$ReadRoleGroupName'."
+}
 
 # Every Exchange cmdlet run by the provider's bridge scripts (bridge/scripts).
 # A unit test (tools/tools_test.go) fails when this list drifts from the scripts.

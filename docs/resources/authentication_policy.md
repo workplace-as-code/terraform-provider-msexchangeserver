@@ -2,12 +2,12 @@
 page_title: "msexchangeserver_authentication_policy (Resource) - msexchangeserver"
 subcategory: "Organization"
 description: |-
-  Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by protocol for the users it applies to (New-AuthenticationPolicy). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (Set-User, out of the provider's scope) and, as the organization's default_authentication_policy, to every other user. Exchange refuses to remove the default policy. A change can take up to 30 minutes to apply.
+  Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by protocol for the users it applies to (New-AuthenticationPolicy). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (Set-User, out of the provider's scope) and, as the organization's default_authentication_policy, to every other user. Removing the default policy leaves the organization without one. A change can take up to 30 minutes to apply.
 ---
 
 # msexchangeserver_authentication_policy (Resource)
 
-Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by protocol for the users it applies to (`New-AuthenticationPolicy`). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (`Set-User`, out of the provider's scope) and, as the organization's `default_authentication_policy`, to every other user. Exchange refuses to remove the default policy. A change can take up to 30 minutes to apply.
+Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by protocol for the users it applies to (`New-AuthenticationPolicy`). Attributes left out of the configuration take the Exchange default when the object is created and are not managed afterwards. Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (`Set-User`, out of the provider's scope) and, as the organization's `default_authentication_policy`, to every other user. Removing the default policy leaves the organization without one. A change can take up to 30 minutes to apply.
 
 ## Example Usage
 

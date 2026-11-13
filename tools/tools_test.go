@@ -240,6 +240,13 @@ $env:MSEXCHANGESERVER_ROLEGROUP_NO_RUN = "1"
 	if out, err = run(`-ReadRoleGroupName RG-TF-RO`); err != nil || !strings.Contains(out, "group=RG-TF-RO") {
 		t.Errorf("-ReadRoleGroupName: %v %s", err, out)
 	}
+	// -RemoveExtraRoles would strip the roles of these groups.
+	for _, args := range []string{`-ReadRoleGroupName "View-Only Organization Management"`,
+		`-RoleGroupName RG-TF -ReadRoleGroupName rg-tf`} {
+		if out, err = run(args); err == nil {
+			t.Errorf("%s must fail: %s", args, out)
+		}
+	}
 	if out, err = run(`-CustomRoleNames @{ Certificate = "CR-CERT" }`); err == nil {
 		t.Errorf("an unknown custom role name must fail: %s", out)
 	}

@@ -468,3 +468,18 @@ func TestOrganizationConfigDefaultAuthenticationPolicyParams(t *testing.T) {
 		}
 	}
 }
+
+// Exchange reads the default policy back with its own case (orgwidedefault
+// becomes OrgWideDefault): the state keeps the configured case, and only a
+// real change shows.
+func TestOrganizationConfigKeepsConfiguredPolicyCase(t *testing.T) {
+	prior := organizationConfigModel{DefaultAuthenticationPolicy: types.StringValue("orgwidedefault")}
+	got := organizationConfigFromAPI(prior, organizationConfigAPIResponse{DefaultAuthenticationPolicy: "OrgWideDefault"})
+	if got.DefaultAuthenticationPolicy.ValueString() != "orgwidedefault" {
+		t.Errorf("same policy, other case: %s", got.DefaultAuthenticationPolicy)
+	}
+	got = organizationConfigFromAPI(prior, organizationConfigAPIResponse{DefaultAuthenticationPolicy: "Block Basic"})
+	if got.DefaultAuthenticationPolicy.ValueString() != "Block Basic" {
+		t.Errorf("another policy: %s", got.DefaultAuthenticationPolicy)
+	}
+}

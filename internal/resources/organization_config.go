@@ -109,10 +109,12 @@ func (r *organizationConfigResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(apiResp))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(plan, apiResp))...)
 }
 
 func (r *organizationConfigResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior organizationConfigModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	output, err := r.client.RunScript(ctx, "organization_config.ps1", map[string]string{
 		"Action": "Get",
 	})
@@ -127,7 +129,7 @@ func (r *organizationConfigResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(apiResp))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(prior, apiResp))...)
 }
 
 func (r *organizationConfigResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -152,7 +154,7 @@ func (r *organizationConfigResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(apiResp))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(plan, apiResp))...)
 }
 
 // Delete removes the resource from Terraform state without touching Exchange.
@@ -186,7 +188,9 @@ func (r *organizationConfigResource) buildSetParams(plan organizationConfigModel
 	return p
 }
 
-func organizationConfigFromAPI(a organizationConfigAPIResponse) organizationConfigModel {
+// organizationConfigFromAPI builds the state from the bridge response. prior
+// (plan or state) keeps the configured case of the default policy name.
+func organizationConfigFromAPI(prior organizationConfigModel, a organizationConfigAPIResponse) organizationConfigModel {
 	return organizationConfigModel{
 		ID:                                    types.StringValue("organization"),
 		ReadTrackingEnabled:                   types.BoolValue(a.ReadTrackingEnabled),
@@ -194,6 +198,6 @@ func organizationConfigFromAPI(a organizationConfigAPIResponse) organizationConf
 		MailTipsExternalRecipientsTipsEnabled: types.BoolValue(a.MailTipsExternalRecipientsTipsEnabled),
 		MailTipsLargeAudienceThreshold:        types.Int64Value(a.MailTipsLargeAudienceThreshold),
 		OAuth2ClientProfileEnabled:            types.BoolValue(a.OAuth2ClientProfileEnabled),
-		DefaultAuthenticationPolicy:           types.StringValue(a.DefaultAuthenticationPolicy),
+		DefaultAuthenticationPolicy:           foldString(prior.DefaultAuthenticationPolicy, a.DefaultAuthenticationPolicy),
 	}
 }
