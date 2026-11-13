@@ -88,7 +88,6 @@ $ProviderRoles = @(
     "E-Mail Address Policies",
     "Organization Configuration",
     "Organization Transport Settings",
-    "POP3 And IMAP4 Protocols",
     "Receive Connectors",
     "Recipient Policies",
     "Remote and Accepted Domains",
@@ -113,6 +112,8 @@ $ProviderRoles = @(
 # - Databases: mounts, dismounts, moves and removes databases and mailboxes.
 # - Exchange Server Certificates: Export-ExchangeCertificate exports private keys.
 # - Audit Logs: Set-Mailbox, mailbox audit bypass and the audit log searches.
+# - POP3 And IMAP4 Protocols: Set-ExchangeFeature, which approves or blocks the
+#   features flighted to every server.
 $CustomRoles = @(
     @{ Name = "Retention"; Parent = "Retention Management"; Cmdlets = @(
         "Get-Mailbox",
@@ -167,6 +168,12 @@ $CustomRoles = @(
     @{ Name = "Databases"; Parent = "Databases"; Cmdlets = @(
         "Get-MailboxDatabase",
         "Set-MailboxDatabase"
+    ) },
+    @{ Name = "POP and IMAP"; Parent = "POP3 And IMAP4 Protocols"; Cmdlets = @(
+        "Get-ImapSettings",
+        "Get-PopSettings",
+        "Set-ImapSettings",
+        "Set-PopSettings"
     ) },
     @{ Name = "Audit Log"; Parent = "Audit Logs"; Cmdlets = @(
         "Get-AdminAuditLogConfig",

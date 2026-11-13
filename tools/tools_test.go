@@ -342,3 +342,30 @@ func TestRunPs1CmdletList(t *testing.T) {
 		t.Errorf("test/cmdlets.txt is out of date (%v): write the cmdlets of $ProviderCmdlets in it, one per line:\n%s", err, want)
 	}
 }
+
+// The built-in POP3 And IMAP4 Protocols role also has Set-ExchangeFeature,
+// which approves or blocks the features flighted to every server: the role
+// group gets a custom role that keeps only the POP3 and IMAP4 cmdlets.
+func TestPopImapThroughACustomRole(t *testing.T) {
+	if roles := quotedList(t, rolesRe, "$ProviderRoles"); strings.Contains(strings.Join(roles, ","), "POP3 And IMAP4 Protocols") {
+		t.Errorf("$ProviderRoles grants the built-in POP3 And IMAP4 Protocols role: %v", roles)
+	}
+	script, err := os.ReadFile(roleGroupScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range customRoleRe.FindAllStringSubmatch(string(script), -1) {
+		if role[2] != "POP3 And IMAP4 Protocols" {
+			continue
+		}
+		var kept []string
+		for _, m := range quotedRe.FindAllStringSubmatch(role[3], -1) {
+			kept = append(kept, m[1])
+		}
+		if got := strings.Join(kept, ","); got != "Get-ImapSettings,Get-PopSettings,Set-ImapSettings,Set-PopSettings" {
+			t.Errorf("custom role %s keeps %s", role[1], got)
+		}
+		return
+	}
+	t.Fatal("no custom role from POP3 And IMAP4 Protocols")
+}
