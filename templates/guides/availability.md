@@ -38,6 +38,7 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy) | Messaging records management |
 | [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy_tag) | |
 | [`msexchangeserver_admin_audit_log_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/admin_audit_log_config) | Singleton: administrator audit logging |
+| [`msexchangeserver_authentication_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/authentication_policy) | Exchange 2019 CU2 and later; the organization default is set on `msexchangeserver_organization_config` |
 
 ## Servers
 

@@ -1,0 +1,1 @@
+terraform import msexchangeserver_authentication_policy.block_basic "Block Basic"

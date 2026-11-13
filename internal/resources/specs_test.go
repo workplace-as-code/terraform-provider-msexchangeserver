@@ -428,3 +428,43 @@ func TestActiveSyncDeviceAccessRuleRegistered(t *testing.T) {
 	}
 	t.Error("msexchangeserver_activesync_device_access_rule is not registered")
 }
+
+func TestAuthenticationPolicySpec(t *testing.T) {
+	s := specByType(t, "authentication_policy")
+	if s.singleton || s.adopted || s.edge || s.scriptName() != "object.ps1" {
+		t.Errorf("singleton %v, adopted %v, edge %v, script %s", s.singleton, s.adopted, s.edge, s.scriptName())
+	}
+	params := map[string]bool{}
+	for _, f := range s.fields {
+		params[f.param] = f.kind == boolField
+	}
+	for _, protocol := range []string{"ActiveSync", "Autodiscover", "Imap", "Mapi", "OfflineAddressBook", "Pop", "Rpc", "WebServices"} {
+		for _, kind := range []string{"Legacy", "Modern"} {
+			if p := "Block" + kind + "Auth" + protocol; !params[p] {
+				t.Errorf("no boolean field for %s", p)
+			}
+		}
+	}
+	if len(s.fields) != 16 {
+		t.Errorf("%d fields, want 16", len(s.fields))
+	}
+}
+
+// default_authentication_policy: a name sets it, "" clears it, and an
+// unconfigured attribute sends nothing.
+func TestOrganizationConfigDefaultAuthenticationPolicyParams(t *testing.T) {
+	r := &organizationConfigResource{}
+	for value, want := range map[types.String]map[string]string{
+		types.StringValue("Block Basic"): {"DefaultAuthenticationPolicy": "Block Basic"},
+		types.StringValue(""):            {"ClearDefaultAuthenticationPolicy": "true"},
+		types.StringNull():               {},
+		types.StringUnknown():            {},
+	} {
+		p := r.buildSetParams(organizationConfigModel{DefaultAuthenticationPolicy: value})
+		for _, k := range []string{"DefaultAuthenticationPolicy", "ClearDefaultAuthenticationPolicy"} {
+			if p[k] != want[k] {
+				t.Errorf("%s: %s = %q, want %q", value, k, p[k], want[k])
+			}
+		}
+	}
+}

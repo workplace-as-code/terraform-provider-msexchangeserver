@@ -129,6 +129,16 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName: "authentication_policy",
+		noun:     "AuthenticationPolicy",
+		description: "Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by " +
+			"protocol for the users it applies to",
+		notes: "Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (`Set-User`, out of the " +
+			"provider's scope) and, as the organization's `default_authentication_policy`, to every other user. Exchange " +
+			"refuses to remove the default policy. A change can take up to 30 minutes to apply.",
+		fields: authenticationPolicyFields(),
+	},
+	{
 		typeName:    "admin_audit_log_config",
 		noun:        "AdminAuditLogConfig",
 		singleton:   true,
@@ -519,6 +529,32 @@ func popImapSpec(typeName, noun, protocol, service string) objectSpec {
 				"Largest number of connections from one IP address.", int64validator.Between(1, 2147483647)),
 		},
 	}
+}
+
+// authenticationPolicyFields are the Block<Legacy|Modern>Auth<protocol>
+// settings of an authentication policy, Basic first.
+func authenticationPolicyFields() []field {
+	protocols := []struct{ name, param, label string }{
+		{"activesync", "ActiveSync", "Exchange ActiveSync"},
+		{"autodiscover", "Autodiscover", "Autodiscover"},
+		{"imap", "Imap", "IMAP4"},
+		{"mapi", "Mapi", "MAPI over HTTP"},
+		{"offline_address_book", "OfflineAddressBook", "offline address book downloads"},
+		{"pop", "Pop", "POP3"},
+		{"rpc", "Rpc", "Outlook Anywhere (RPC over HTTP)"},
+		{"web_services", "WebServices", "Exchange Web Services"},
+	}
+	var fields []field
+	for _, kind := range []struct{ name, param, label string }{
+		{"legacy", "Legacy", "Basic authentication"},
+		{"modern", "Modern", "modern authentication (OAuth)"},
+	} {
+		for _, p := range protocols {
+			fields = append(fields, boolAttr("block_"+kind.name+"_auth_"+p.name, "Block"+kind.param+"Auth"+p.param,
+				fmt.Sprintf("Block %s for %s.", kind.label, p.label)))
+		}
+	}
+	return fields
 }
 
 // protocolLogNote: the transport services have no switch for the SMTP
