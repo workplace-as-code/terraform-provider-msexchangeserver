@@ -478,6 +478,84 @@ var objectSpecs = []objectSpec{
 	popImapSpec("pop_settings", "PopSettings", "POP3", "Pop3"),
 	popImapSpec("imap_settings", "ImapSettings", "IMAP4", "Imap4"),
 	{
+		typeName: "address_list",
+		noun:     "AddressList",
+		script:   "address_book.ps1",
+		description: "Manages an address list: the recipients that match a filter, shown in Outlook and usable in " +
+			"an address book policy",
+		notes: membersNote("Update-AddressList") + " Precanned filters (`-IncludedRecipients` " +
+			"and `-Conditional*`) are not managed: an imported precanned list shows the equivalent filter in " +
+			"`recipient_filter`, and applying writes it as a custom filter.",
+		fields: []field{
+			stringAttr("display_name", "DisplayName", "The name shown in Outlook. Defaults to `name`."),
+			{
+				name: "container", param: "Container", kind: stringField, forceNew: true,
+				desc: "Name of the parent address list, for a list nested in another one. Empty for a top-level " +
+					"list. Changing it creates a new list.",
+			},
+			filterAttr("recipient_filter", "RecipientFilter", "OPATH filter of the recipients in the list, for "+
+				"example `Company -eq 'Contoso' -and RecipientType -eq 'UserMailbox'`. Exchange rewrites it with "+
+				"parentheses: the configured text is kept as long as Exchange returns the text it wrote."),
+			recipientContainerAttr("list"),
+		},
+	},
+	{
+		typeName:    "global_address_list",
+		noun:        "GlobalAddressList",
+		script:      "address_book.ps1",
+		description: "Manages a global address list (GAL), the main address list of an address book policy",
+		notes: "The default GAL, `" + defaultGAL + "`, cannot be changed: import it or use the data source to read " +
+			"it. " + membersNote("Update-GlobalAddressList"),
+		fields: []field{
+			filterAttr("recipient_filter", "RecipientFilter", "OPATH filter of the recipients in the GAL, for "+
+				"example `CustomAttribute1 -eq 'Contoso'`. Exchange rewrites it with parentheses: the configured "+
+				"text is kept as long as Exchange returns the text it wrote."),
+			recipientContainerAttr("GAL"),
+		},
+		planCheck: checkDefaultGAL,
+	},
+	{
+		typeName:    "offline_address_book",
+		noun:        "OfflineAddressBook",
+		script:      "address_book.ps1",
+		description: "Manages an offline address book (OAB), the address lists Outlook downloads for offline use",
+		notes: "`address_lists` is required to create it. Set `is_default` on one offline address book only. The " +
+			"default offline address book cannot be deleted: make another one the default first. The provider " +
+			"never generates the offline address book (`Update-OfflineAddressBook`).",
+		fields: []field{
+			setAttr("address_lists", "AddressLists", "Names of the address lists in the offline address book, "+
+				"usually a GAL."),
+			stringAttr("generating_mailbox", "GeneratingMailbox", "Name of the arbitration mailbox that generates "+
+				"the offline address book, for example `SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}`."),
+			coupledAttr("oab_distribution", setAttr("virtual_directories", "VirtualDirectories", "OAB virtual "+
+				"directories that distribute the offline address book, for example `EX01\\OAB (Default Web Site)`. "+
+				"Cannot be set with `global_web_distribution_enabled = true`.")),
+			coupledAttr("oab_distribution", boolAttr("global_web_distribution_enabled", "GlobalWebDistributionEnabled",
+				"Whether every OAB virtual directory of the organization distributes the offline address book. "+
+					"Turning it on removes the `virtual_directories`.")),
+			trueOnlyAttr(boolAttr("is_default", "IsDefault", "Whether this is the default offline address book, "+
+				"used by the mailbox databases that name none. Only `true` can be set: making another offline "+
+				"address book the default turns this one off.")),
+		},
+		planCheck: checkOabDistribution,
+	},
+	{
+		typeName: "address_book_policy",
+		noun:     "AddressBookPolicy",
+		script:   "address_book.ps1",
+		description: "Manages an address book policy (ABP), which gives the mailboxes it is assigned to their own " +
+			"GAL, address lists, offline address book and room list",
+		notes: "All four references are required to create a policy; they are names of the corresponding " +
+			"resources. Assigning the policy to mailboxes (`Set-Mailbox -AddressBookPolicy`) is not managed.",
+		fields: []field{
+			stringAttr("global_address_list", "GlobalAddressList", "Name of the global address list."),
+			stringAttr("offline_address_book", "OfflineAddressBook", "Name of the offline address book."),
+			stringAttr("room_list", "RoomList", "Name of the address list of the rooms users can book, an address "+
+				"list whose filter selects room mailboxes."),
+			setAttr("address_lists", "AddressLists", "Names of the address lists users see besides the GAL."),
+		},
+	},
+	{
 		typeName: "client_access_service",
 		noun:     "ClientAccessService",
 		script:   "virtual_directory.ps1",
