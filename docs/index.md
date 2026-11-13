@@ -26,7 +26,7 @@ terraform {
   required_providers {
     msexchangeserver = {
       source  = "workplace-as-code/msexchangeserver"
-      version = "~> 0.6"
+      version = "~> 0.7"
     }
   }
 }
@@ -86,6 +86,6 @@ The integration tests create, update, import and destroy every resource type in 
 
 | Provider | Terraform | Exchange Server | Server roles | PowerShell | Lab run |
 |---|---|---|---|---|---|
-| 0.6.0 | 1.17.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 (Windows Server 2022) | November 12, 2026 |
+| 0.7.0 | 1.17.0 | Subscription Edition, build 15.2.2562.17 | Mailbox; Edge Transport, locally and through WinRM | Windows PowerShell 5.1 (Windows Server 2022) | November 13, 2026 |
 
 Exchange Server 2016 and 2019 use the same remote PowerShell endpoint and should work, but are not tested: report any difference in an issue.
