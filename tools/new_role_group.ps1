@@ -13,10 +13,12 @@
     itself: it checks with Exchange that these roles still contain every
     cmdlet of the provider, and stops if one is missing.
 
-    The read account needs no new role group: the built-in View-Only
-    Organization Management role group is enough. The script checks that it
-    contains every Get- cmdlet of the provider, and -ReadMember adds the read
-    account to it.
+    The read account gets the built-in View-Only Organization Management role
+    group, and a read role group with the custom roles of $ReadCustomRoles:
+    the Get- cmdlets that View-Only Organization Management lacks, such as
+    Get-AuthenticationPolicy. The script checks that both together contain
+    every Get- cmdlet of the provider, and -ReadMember adds the read account
+    to both.
 
     Without -Apply, the script only checks the roles and shows what it would do.
 
@@ -28,18 +30,23 @@
 
 .PARAMETER ReadMember
     Read account of the provider, as CONTOSO\svc-tf-exch-read. With -Apply,
-    it is added to View-Only Organization Management.
+    it is added to View-Only Organization Management and to the read role
+    group.
 
 .PARAMETER RoleGroupName
     Name of the role group to create.
 
+.PARAMETER ReadRoleGroupName
+    Name of the read role group. Without it, "<RoleGroupName>-read".
+
 .PARAMETER CustomRolePrefix
     Prefix of the custom role names, followed by the name of each role in
-    $CustomRoles (for example CR-EXCH-TF- gives CR-EXCH-TF-Certificates).
+    $CustomRoles or $ReadCustomRoles (for example CR-EXCH-TF- gives
+    CR-EXCH-TF-Certificates).
     Without it, the custom roles are named "<RoleGroupName> <name>".
 
 .PARAMETER CustomRoleNames
-    Name of each custom role, by its name in $CustomRoles, for naming
+    Name of each custom role, by its name in $CustomRoles or $ReadCustomRoles, for naming
     conventions: @{ Certificates = "CR-EXCH-TF-CERT"; Databases = "CR-EXCH-TF-DB" }.
     It takes precedence over -CustomRolePrefix; the roles it does not list use
     the prefix.
@@ -49,8 +56,8 @@
     accounts. Without it, the script only shows what it would do.
 
 .PARAMETER RemoveExtraRoles
-    With -Apply, also remove from an existing role group the roles that are
-    not in $ProviderRoles nor $CustomRoles. Without it, the script only lists
+    With -Apply, also remove from the existing role groups the roles that are
+    not in $ProviderRoles, $CustomRoles or $ReadCustomRoles. Without it, the script only lists
     them. A custom role that this script created and that nothing else is
     assigned is then deleted: after a rename, the old roles go away.
 
@@ -72,6 +79,7 @@ param(
     [string]$Member = "",
     [string]$ReadMember = "",
     [string]$RoleGroupName = "terraform-msexchangeserver",
+    [string]$ReadRoleGroupName = "",
     [string]$CustomRolePrefix = "",
     [hashtable]$CustomRoleNames = @{},
     [switch]$Apply,
@@ -197,22 +205,35 @@ $CustomRoles = @(
         "Remove-ExchangeCertificate"
     ) }
 )
+
+# The read custom roles: the Get- cmdlets of the provider that View-Only
+# Organization Management does not contain, each from the narrowest role that
+# has it. They go to the read role group, never to the write one.
+# - Organization Configuration: Get-AuthenticationPolicy (View-Only
+#   Configuration does not have it).
+$ReadCustomRoles = @(
+    @{ Name = "Read"; Parent = "Organization Configuration"; Cmdlets = @(
+        "Get-AuthenticationPolicy"
+    ) }
+)
 # The name of each custom role in the organization: -CustomRoleNames, then
 # -CustomRolePrefix, then "<RoleGroupName> <name>".
-$unknownNames = @($CustomRoleNames.Keys | Where-Object { @($CustomRoles | ForEach-Object { $_.Name }) -notcontains $_ })
+$AllCustomRoles = @($CustomRoles) + @($ReadCustomRoles)
+$unknownNames = @($CustomRoleNames.Keys | Where-Object { @($AllCustomRoles | ForEach-Object { $_.Name }) -notcontains $_ })
 if ($unknownNames.Count -gt 0) {
-    throw "-CustomRoleNames: unknown custom roles $($unknownNames -join ', '). Valid names: $(($CustomRoles | ForEach-Object { $_.Name }) -join ', ')."
+    throw "-CustomRoleNames: unknown custom roles $($unknownNames -join ', '). Valid names: $(($AllCustomRoles | ForEach-Object { $_.Name }) -join ', ')."
 }
-foreach ($custom in $CustomRoles) {
+foreach ($custom in $AllCustomRoles) {
     $custom.Role = if ($CustomRoleNames.ContainsKey($custom.Name)) { [string]$CustomRoleNames[$custom.Name] }
                    elseif ($CustomRolePrefix) { "$CustomRolePrefix$($custom.Name)" }
                    else { "$RoleGroupName $($custom.Name)" }
 }
-$duplicates = @($CustomRoles | Group-Object { $_.Role } | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+$duplicates = @($AllCustomRoles | Group-Object { $_.Role } | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
 if ($duplicates.Count -gt 0) { throw "Several custom roles would have the same name: $($duplicates -join ', ')." }
 
-# The built-in role group of the read account.
+# The built-in role group of the read account, and its read role group.
 $ReadRoleGroup = "View-Only Organization Management"
+if (-not $ReadRoleGroupName) { $ReadRoleGroupName = "$RoleGroupName-read" }
 
 # Every Exchange cmdlet run by the provider's bridge scripts (bridge/scripts).
 # A unit test (tools/tools_test.go) fails when this list drifts from the scripts.
@@ -331,7 +352,7 @@ if (-not (Get-Command Get-ManagementRole -ErrorAction SilentlyContinue)) {
 }
 
 Write-Host "Checking that the roles contain the $($ProviderCmdlets.Count) cmdlets of the provider..."
-$unknownRoles = @(@($ProviderRoles) + @($CustomRoles | ForEach-Object { $_.Parent }) | Where-Object { -not (Get-ManagementRole -Identity $_ -ErrorAction SilentlyContinue) })
+$unknownRoles = @(@($ProviderRoles) + @($AllCustomRoles | ForEach-Object { $_.Parent }) | Where-Object { -not (Get-ManagementRole -Identity $_ -ErrorAction SilentlyContinue) })
 if ($unknownRoles.Count -gt 0) {
     throw "These roles do not exist in this organization: $($unknownRoles -join ', ')"
 }
@@ -344,7 +365,7 @@ foreach ($cmdlet in $ProviderCmdlets) {
 
 # Each custom role contains the cmdlets of its list that its parent contains,
 # whether it exists yet or not.
-foreach ($custom in $CustomRoles) {
+foreach ($custom in $AllCustomRoles) {
     $parentCmdlets = @(Get-ManagementRoleEntry "$($custom.Parent)\*" | ForEach-Object { [string]$_.Name })
     $missingFromParent = @($custom.Cmdlets | Where-Object { $parentCmdlets -notcontains $_ })
     if ($missingFromParent.Count -gt 0) {
@@ -363,24 +384,26 @@ if ($uncovered.Count -gt 0) {
 }
 
 # The read account runs the Get- cmdlets, and Set-ADServerSettings with domain_controller.
-$readRoles = @(Get-ManagementRoleAssignment -RoleAssignee $ReadRoleGroup -Delegating:$false |
-    ForEach-Object { [string]$_.Role } | Sort-Object -Unique)
+$readRoles = @(@(Get-ManagementRoleAssignment -RoleAssignee $ReadRoleGroup -Delegating:$false |
+    ForEach-Object { [string]$_.Role }) + @($ReadCustomRoles | ForEach-Object { $_.Role }) | Sort-Object -Unique)
 $readCmdlets = @{}
 foreach ($cmdlet in $ProviderCmdlets | Where-Object { $_ -like "Get-*" -or $_ -eq "Set-ADServerSettings" }) {
     $readCmdlets[$cmdlet] = $rolesByCmdlet[$cmdlet]
 }
 $readUncovered = @(Find-UncoveredCmdlets -RolesByCmdlet $readCmdlets -Roles $readRoles)
 if ($readUncovered.Count -gt 0) {
-    Write-Warning "'$ReadRoleGroup' does not contain: $($readUncovered -join ', '). The read account cannot run them."
+    Write-Warning "'$ReadRoleGroup' and '$ReadRoleGroupName' do not contain: $($readUncovered -join ', '). The read account cannot run them."
 }
 
 Write-Host ""
 Write-Host "Management roles of '$RoleGroupName':"
 $ProviderRoles | ForEach-Object { Write-Host "  - $_" }
 $CustomRoles | ForEach-Object { Write-Host "  - $($_.Role) (custom role from $($_.Parent): $($_.Cmdlets -join ', '))" }
+Write-Host "Management roles of '$ReadRoleGroupName', with '$ReadRoleGroup', for the read account:"
+$ReadCustomRoles | ForEach-Object { Write-Host "  - $($_.Role) (custom role from $($_.Parent): $($_.Cmdlets -join ', '))" }
 
 # Each custom role: entries to add or remove to match its list.
-foreach ($custom in $CustomRoles) {
+foreach ($custom in $AllCustomRoles) {
     $custom.Exists = [bool](Get-ManagementRole -Identity $custom.Role -ErrorAction SilentlyContinue)
     $entries = @()
     if ($custom.Exists) { $entries = @(Get-ManagementRoleEntry "$($custom.Role)\*" | ForEach-Object { [string]$_.Name }) }
@@ -397,16 +420,20 @@ foreach ($custom in $CustomRoles) {
 # which -RemoveExtraRoles may delete.
 $CustomRoleDescription = "for the workplace-as-code/msexchangeserver Terraform provider"
 
-# Roles of an existing role group that are not in the list.
-$extra = @()
-if (Get-RoleGroup -Identity $RoleGroupName -ErrorAction SilentlyContinue) {
-    $current = @((Get-RoleGroup -Identity $RoleGroupName).Roles | ForEach-Object { (Get-ManagementRole -Identity $_).Name })
-    $extra = @($current | Where-Object { $groupRoles -notcontains $_ } | Sort-Object)
+# Get-ExtraRoles returns the roles of an existing role group that are not in $Roles.
+function Get-ExtraRoles([string]$Group, [string[]]$Roles) {
+    if (-not (Get-RoleGroup -Identity $Group -ErrorAction SilentlyContinue)) { return @() }
+    $current = @((Get-RoleGroup -Identity $Group).Roles | ForEach-Object { (Get-ManagementRole -Identity $_).Name })
+    @($current | Where-Object { $Roles -notcontains $_ } | Sort-Object)
 }
-if ($extra.Count -gt 0 -and -not ($Apply -and $RemoveExtraRoles)) {
-    Write-Host ""
-    Write-Warning ("'$RoleGroupName' has roles the provider does not need: $($extra -join ', '). " +
-        "Remove them with -Apply -RemoveExtraRoles.")
+$readGroupRoles = @($ReadCustomRoles | ForEach-Object { $_.Role })
+foreach ($check in @(@{ Group = $RoleGroupName; Roles = $groupRoles }, @{ Group = $ReadRoleGroupName; Roles = $readGroupRoles })) {
+    $extra = @(Get-ExtraRoles $check.Group $check.Roles)
+    if ($extra.Count -gt 0 -and -not ($Apply -and $RemoveExtraRoles)) {
+        Write-Host ""
+        Write-Warning ("'$($check.Group)' has roles the provider does not need: $($extra -join ', '). " +
+            "Remove them with -Apply -RemoveExtraRoles.")
+    }
 }
 
 if (-not $Apply) {
@@ -418,9 +445,9 @@ if (-not $Member) {
     throw "-Apply needs -Member."
 }
 
-# The custom roles first, so that the role group never misses their cmdlets. A
+# The custom roles first, so that the role groups never miss their cmdlets. A
 # child role starts with every entry of its parent: the unneeded ones are removed.
-foreach ($custom in $CustomRoles) {
+foreach ($custom in $AllCustomRoles) {
     if (-not $custom.Exists) {
         New-ManagementRole -Name $custom.Role -Parent $custom.Parent -Description "Cmdlets of $($custom.Parent) $CustomRoleDescription" | Out-Null
         Write-Host "Created the custom role '$($custom.Role)'."
@@ -438,31 +465,38 @@ foreach ($custom in $CustomRoles) {
     }
 }
 
-if (Get-RoleGroup -Identity $RoleGroupName -ErrorAction SilentlyContinue) {
-    $current = @((Get-RoleGroup -Identity $RoleGroupName).Roles | ForEach-Object { (Get-ManagementRole -Identity $_).Name })
-    foreach ($role in $groupRoles | Where-Object { $current -notcontains $_ }) {
-        New-ManagementRoleAssignment -SecurityGroup $RoleGroupName -Role $role | Out-Null
-        Write-Host "Added role '$role' to '$RoleGroupName'."
+# Sync-RoleGroup creates the role group $Group with $Roles, or adds the
+# missing roles to it; with -RemoveExtraRoles, it also removes the others.
+function Sync-RoleGroup([string]$Group, [string[]]$Roles, [string]$Description) {
+    if (-not (Get-RoleGroup -Identity $Group -ErrorAction SilentlyContinue)) {
+        New-RoleGroup -Name $Group -Roles $Roles -Description $Description | Out-Null
+        Write-Host "Created role group '$Group'."
+        return
     }
-    if ($RemoveExtraRoles) {
-        foreach ($role in $extra) {
-            Get-ManagementRoleAssignment -RoleAssignee $RoleGroupName -Role $role |
-                Where-Object { $_.RoleAssigneeName -eq $RoleGroupName } |
-                Remove-ManagementRoleAssignment -Confirm:$false
-            Write-Host "Removed role '$role' from '$RoleGroupName'."
-            # A custom role of this script that nothing else uses, such as the
-            # old name of a renamed role.
-            $old = Get-ManagementRole -Identity $role
-            if (-not $old.IsRootRole -and "$($old.Description)" -like "*$CustomRoleDescription" -and
-                @(Get-ManagementRoleAssignment -Role $role -Delegating:$false).Count -eq 0) {
-                Remove-ManagementRole -Identity $role -Confirm:$false
-                Write-Host "Deleted the custom role '$role'."
-            }
+    $current = @((Get-RoleGroup -Identity $Group).Roles | ForEach-Object { (Get-ManagementRole -Identity $_).Name })
+    foreach ($role in $Roles | Where-Object { $current -notcontains $_ }) {
+        New-ManagementRoleAssignment -SecurityGroup $Group -Role $role | Out-Null
+        Write-Host "Added role '$role' to '$Group'."
+    }
+    if (-not $RemoveExtraRoles) { return }
+    foreach ($role in @(Get-ExtraRoles $Group $Roles)) {
+        Get-ManagementRoleAssignment -RoleAssignee $Group -Role $role |
+            Where-Object { $_.RoleAssigneeName -eq $Group } |
+            Remove-ManagementRoleAssignment -Confirm:$false
+        Write-Host "Removed role '$role' from '$Group'."
+        # A custom role of this script that nothing else uses, such as the
+        # old name of a renamed role.
+        $old = Get-ManagementRole -Identity $role
+        if (-not $old.IsRootRole -and "$($old.Description)" -like "*$CustomRoleDescription" -and
+            @(Get-ManagementRoleAssignment -Role $role -Delegating:$false).Count -eq 0) {
+            Remove-ManagementRole -Identity $role -Confirm:$false
+            Write-Host "Deleted the custom role '$role'."
         }
     }
-} else {
-    New-RoleGroup -Name $RoleGroupName -Roles $groupRoles -Description "Least-privilege roles for the workplace-as-code/msexchangeserver Terraform provider" | Out-Null
-    Write-Host "Created role group '$RoleGroupName'."
+}
+Sync-RoleGroup $RoleGroupName $groupRoles "Least-privilege roles for the workplace-as-code/msexchangeserver Terraform provider"
+if ($readGroupRoles.Count -gt 0) {
+    Sync-RoleGroup $ReadRoleGroupName $readGroupRoles "Read roles for the workplace-as-code/msexchangeserver Terraform provider"
 }
 
 # Add-RoleGroupMember fails when the account is already a member.
@@ -475,6 +509,9 @@ function Add-MissingMember([string]$Group, [string]$Account) {
     }
 }
 Add-MissingMember $RoleGroupName $Member
-if ($ReadMember) { Add-MissingMember $ReadRoleGroup $ReadMember }
+if ($ReadMember) {
+    Add-MissingMember $ReadRoleGroup $ReadMember
+    if ($readGroupRoles.Count -gt 0) { Add-MissingMember $ReadRoleGroupName $ReadMember }
+}
 Write-Host ("Done. Open a new session for the accounts to get their roles. Remove the write account from " +
     "Organization Management, or any other role group that grants more than the provider needs.")

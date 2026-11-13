@@ -58,7 +58,13 @@ When a built-in role grants much more than the provider needs, the script create
 
 The names above are the defaults, `<role group> <name>`. For a naming convention, `-RoleGroupName` names the role group, `-CustomRolePrefix` replaces the prefix of the custom roles (`-CustomRolePrefix CR-EXCH-TF-` gives `CR-EXCH-TF-Certificates`), and `-CustomRoleNames` names each custom role (`-CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }`). The provider does not depend on these names. After a rename, `-Apply -RemoveExtraRoles` deletes the old custom roles.
 
-A read-only account (for `terraform plan`) needs no new role group: the built-in **View-Only Organization Management** role group contains every cmdlet the provider reads with.
+A read-only account (for `terraform plan`) gets the built-in **View-Only Organization Management** role group, and a read role group, `terraform-msexchangeserver-read` by default (`-ReadRoleGroupName` names it), for the `Get-` cmdlets that View-Only Organization Management lacks:
+
+| Custom role | From | Keeps |
+|---|---|---|
+| `terraform-msexchangeserver Read` | **Organization Configuration** | `Get-AuthenticationPolicy` |
+
+`-ReadMember` adds the read account to both groups.
 
 The script first checks with Exchange that these roles contain every cmdlet of the provider, and stops if one is missing. Run it in the Exchange Management Shell as a member of Organization Management:
 
