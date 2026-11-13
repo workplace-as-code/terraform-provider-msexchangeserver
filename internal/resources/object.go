@@ -50,6 +50,11 @@ const (
 	sizeField    // Exchange size (ByteQuantifiedSize), exposed in megabytes; 0 is Unlimited
 	limitField   // Exchange count that accepts Unlimited; 0 is Unlimited
 	setField     // multi-valued property whose order Exchange does not keep
+	// filterField is an OPATH recipient filter, which Exchange rewrites (it
+	// adds parentheses). The state keeps the configured text while Exchange
+	// returns the text it returned after the last write, recorded in private
+	// state.
+	filterField
 )
 
 // field maps one Terraform attribute to one cmdlet parameter and property.
@@ -69,6 +74,28 @@ type field struct {
 	nonEmpty     bool // stringField that refuses "" (see pathAttr)
 	// changedElsewhere: another resource changes it (see changedElsewhereAttr).
 	changedElsewhere bool
+	trueOnly         bool // boolField that refuses false (see trueOnlyAttr)
+	caseless         bool // stringField compared without regard to case (see caselessAttr)
+}
+
+// filterAttr is an OPATH recipient filter such as RecipientFilter.
+func filterAttr(name, param, desc string) field {
+	return field{name: name, param: param, kind: filterField, desc: desc}
+}
+
+// trueOnlyAttr is a flag that can only be turned on, such as the IsDefault of
+// an offline address book: Exchange refuses to unset a default, another object
+// must take it.
+func trueOnlyAttr(f field) field {
+	f.trueOnly = true
+	return f
+}
+
+// caselessAttr is a string that Exchange may return in another case (a
+// canonical name such as contoso.com/Paris): the state keeps the configured case.
+func caselessAttr(f field) field {
+	f.caseless = true
+	return f
 }
 
 // coupledAttr puts f in a group of settings that Exchange changes together:
@@ -264,6 +291,11 @@ type objectSpec struct {
 	description string // first sentence of the resource documentation
 	notes       string // appended to the description
 	fields      []field
+	// planCheck refuses a plan that Exchange would refuse or that must not be
+	// applied (a change to the default GAL). It gets the configuration, plan
+	// and prior state attributes (state nil on create); it never runs on a
+	// destroy.
+	planCheck func(config, plan, state map[string]attr.Value) diag.Diagnostics
 }
 
 func (s objectSpec) scriptName() string {
@@ -328,7 +360,11 @@ func (f field) schemaAttribute() schema.Attribute {
 	}
 	switch f.kind {
 	case boolField:
-		return optionalBool(f.desc)
+		a := optionalBool(f.desc)
+		if f.trueOnly {
+			a.Validators = append(a.Validators, trueOnlyValidator{})
+		}
+		return a
 	case int64Field, daysField, minutesField, sizeField, limitField:
 		a := optionalInt64(f.desc, f.validators...)
 		if f.forceNew {
@@ -457,13 +493,25 @@ func (r *objectResource) singletonID() string {
 // configured one (coupledUnknown). Only updates are concerned: a create reads
 // everything back anyway, and a destroy plans nothing.
 func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || !r.spec.hasPlanAdjustments() {
+	if req.Plan.Raw.IsNull() || !r.spec.hasPlanAdjustments() {
 		return
 	}
-	var plan, state, config types.Object
+	var plan, config types.Object
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(r.checkPlan(config.Attributes(), plan.Attributes(), nil)...)
+		return
+	}
+	var state types.Object
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(r.checkPlan(config.Attributes(), plan.Attributes(), state.Attributes())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -476,9 +524,20 @@ func (r *objectResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	}
 }
 
-// hasPlanAdjustments reports whether ModifyPlan changes the plan of s: coupled
-// or changedElsewhere fields.
+// checkPlan runs the spec's planCheck, if any (state nil on create).
+func (r *objectResource) checkPlan(config, plan, state map[string]attr.Value) diag.Diagnostics {
+	if r.spec.planCheck == nil {
+		return nil
+	}
+	return r.spec.planCheck(config, plan, state)
+}
+
+// hasPlanAdjustments reports whether ModifyPlan changes or checks the plan of
+// s: coupled or changedElsewhere fields, or a planCheck.
 func (s objectSpec) hasPlanAdjustments() bool {
+	if s.planCheck != nil {
+		return true
+	}
 	for _, f := range s.fields {
 		if f.coupled != "" || f.changedElsewhere {
 			return true
@@ -504,12 +563,13 @@ func (r *objectResource) Create(ctx context.Context, req resource.CreateRequest,
 	if r.spec.singleton || r.spec.adopted {
 		action = "Update"
 	}
-	state, diags := r.write(ctx, action, plan, config, r.identity(plan))
+	state, written, diags := r.write(ctx, action, plan, config, r.identity(plan))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	resp.Diagnostics.Append(r.recordFilters(ctx, resp.Private, written)...)
 }
 
 func (r *objectResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -527,7 +587,9 @@ func (r *objectResource) Read(ctx context.Context, req resource.ReadRequest, res
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	state, diags := r.fromAPI(prior, output)
+	recorded, diags := r.recordedFilters(ctx, req.Private)
+	resp.Diagnostics.Append(diags...)
+	state, diags := r.fromAPI(prior, output, recorded)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -543,12 +605,51 @@ func (r *objectResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state, diags := r.write(ctx, "Update", plan, config, r.identity(prior))
+	state, written, diags := r.write(ctx, "Update", plan, config, r.identity(prior))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	resp.Diagnostics.Append(r.recordFilters(ctx, resp.Private, written)...)
+}
+
+// privateState is the private state of a response or request (resp.Private).
+type privateState interface {
+	GetKey(ctx context.Context, key string) ([]byte, diag.Diagnostics)
+	SetKey(ctx context.Context, key string, value []byte) diag.Diagnostics
+}
+
+// recordFilters saves the filters as Exchange returned them after a write.
+func (r *objectResource) recordFilters(ctx context.Context, private privateState, filters map[string]string) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if private == nil {
+		return diags
+	}
+	for name, value := range filters {
+		raw, _ := json.Marshal(value)
+		diags.Append(private.SetKey(ctx, "filter_"+name, raw)...)
+	}
+	return diags
+}
+
+// recordedFilters returns the filters saved by recordFilters; none after an
+// import, or when the request has no private state (terraform query).
+func (r *objectResource) recordedFilters(ctx context.Context, private privateState) (map[string]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	recorded := map[string]string{}
+	for _, f := range r.spec.fields {
+		if f.kind != filterField || private == nil {
+			continue
+		}
+		raw, d := private.GetKey(ctx, "filter_"+f.name)
+		diags.Append(d...)
+		var value string
+		if len(raw) > 0 && json.Unmarshal(raw, &value) == nil {
+			recorded[f.name] = value
+		}
+	}
+	return recorded, diags
 }
 
 // Delete removes the object. Organization-wide settings and adopted objects
@@ -620,19 +721,36 @@ func (r *objectResource) params(action, identity string, values map[string]any) 
 // Only the attributes set in the configuration are sent: the plan also holds
 // the current value of the others (UseStateForUnknown), and writing them back
 // could fail (an empty address) or overwrite a change made in the meantime.
-func (r *objectResource) write(ctx context.Context, action string, plan, config types.Object, identity string) (types.Object, diag.Diagnostics) {
+// It also returns the filters as Exchange returned them, to record.
+func (r *objectResource) write(ctx context.Context, action string, plan, config types.Object, identity string) (types.Object, map[string]string, diag.Diagnostics) {
 	values, diags := r.writeValues(ctx, action, plan, config)
 	if diags.HasError() {
-		return plan, diags
+		return plan, nil, diags
 	}
 	output, err := r.client.RunScript(ctx, r.spec.scriptName(), r.params(action, identity, values))
 	if err != nil {
 		diags.AddError(fmt.Sprintf("Failed to write %s", r.spec.typeName), err.Error())
-		return plan, diags
+		return plan, nil, diags
 	}
-	state, d := r.fromAPI(plan, output)
+	// The filters just written are the ones to keep in their configured form.
+	written := r.filtersOf(output)
+	state, d := r.fromAPI(plan, output, written)
 	diags.Append(d...)
-	return state, diags
+	return state, written, diags
+}
+
+// filtersOf returns the filter fields of a bridge response.
+func (r *objectResource) filtersOf(output []byte) map[string]string {
+	var api map[string]any
+	_ = json.Unmarshal(output, &api)
+	filters := map[string]string{}
+	for _, f := range r.spec.fields {
+		if f.kind == filterField {
+			s, _ := api[f.param].(string)
+			filters[f.name] = s
+		}
+	}
+	return filters
 }
 
 // writeValues returns the cmdlet parameters to send: the configured, known
@@ -708,8 +826,9 @@ func (r *objectResource) writeValues(ctx context.Context, action string, plan, c
 
 // fromAPI builds the state from the JSON object returned by the bridge. prior
 // is the plan or previous state: it supplies the name and keeps the configured
-// case of enum values.
-func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Object, diag.Diagnostics) {
+// case of enum and caseless values, and the configured text of the filters
+// that Exchange returns as recorded.
+func (r *objectResource) fromAPI(prior types.Object, output []byte, recorded map[string]string) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var api map[string]any
 	if err := json.Unmarshal(output, &api); err != nil {
@@ -765,9 +884,20 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte) (types.Objec
 			s, _ := raw.(string)
 			priorValue, _ := priorAttrs[f.name].(types.String)
 			values[f.name] = foldString(priorValue, s)
+		case filterField:
+			s, _ := raw.(string)
+			priorValue, _ := priorAttrs[f.name].(types.String)
+			values[f.name] = types.StringValue(s)
+			if last, ok := recorded[f.name]; ok && last == s && known(priorValue) && priorValue.ValueString() != "" {
+				values[f.name] = priorValue
+			}
 		default:
 			s, _ := raw.(string)
 			values[f.name] = types.StringValue(s)
+			if f.caseless {
+				priorValue, _ := priorAttrs[f.name].(types.String)
+				values[f.name] = foldString(priorValue, s)
+			}
 		}
 	}
 	obj, d := types.ObjectValue(r.spec.attrTypes(), values)
@@ -919,4 +1049,19 @@ func warnStateOnlyDestroy(diags *diag.Diagnostics, typeName, reason string) {
 		fmt.Sprintf("msexchangeserver_%s was only removed from the Terraform state", typeName),
 		reason+" Destroying the resource only removes it from the Terraform state: its settings keep their current values. To undo a change made with Terraform, set the previous value and apply before destroying.",
 	)
+}
+
+// trueOnlyValidator refuses false (see trueOnlyAttr).
+type trueOnlyValidator struct{}
+
+func (trueOnlyValidator) Description(context.Context) string { return "can only be set to true" }
+
+func (v trueOnlyValidator) MarkdownDescription(ctx context.Context) string { return v.Description(ctx) }
+
+func (trueOnlyValidator) ValidateBool(_ context.Context, req validator.BoolRequest, resp *validator.BoolResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || req.ConfigValue.ValueBool() {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(req.Path, "Invalid value",
+		"Can only be set to true: Exchange cannot unset a default, make another object the default instead.")
 }

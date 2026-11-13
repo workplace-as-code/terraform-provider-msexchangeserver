@@ -154,7 +154,7 @@ func TestIISAuthenticationMethodsCase(t *testing.T) {
 		attrs["iis_authentication_methods"] = types.SetValueMust(types.StringType,
 			[]attr.Value{types.StringValue("NTLM"), types.StringValue("Negotiate")})
 		prior := types.ObjectValueMust(r.spec.attrTypes(), attrs)
-		got, diags := r.fromAPI(prior, []byte(`{"Name":"EX01","IISAuthenticationMethods":["Ntlm","Negotiate"]}`))
+		got, diags := r.fromAPI(prior, []byte(`{"Name":"EX01","IISAuthenticationMethods":["Ntlm","Negotiate"]}`), nil)
 		if diags.HasError() {
 			t.Fatal(diags)
 		}
