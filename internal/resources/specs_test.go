@@ -400,3 +400,31 @@ func TestJournalRuleSpec(t *testing.T) {
 		t.Errorf("scope values %s", got)
 	}
 }
+
+func TestActiveSyncOrganizationSettingsSpec(t *testing.T) {
+	s := specByType(t, "activesync_organization_settings")
+	if !s.singleton || s.edge || s.edgeOnly {
+		t.Errorf("singleton %v, edge %v/%v: want a Mailbox singleton", s.singleton, s.edge, s.edgeOnly)
+	}
+	for _, f := range s.fields {
+		if f.name == "default_access_level" && strings.Join(f.values, ",") != "Allow,Block,Quarantine" {
+			t.Errorf("default_access_level values %v", f.values)
+		}
+	}
+}
+
+// The device access rules are a hand-written resource, registered with their
+// list query and kept off Edge.
+func TestActiveSyncDeviceAccessRuleRegistered(t *testing.T) {
+	for _, reg := range registrations() {
+		var resp resource.MetadataResponse
+		reg.newResource().Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "msexchangeserver"}, &resp)
+		if resp.TypeName == "msexchangeserver_activesync_device_access_rule" {
+			if reg.edge || reg.list.noun != "ActiveSyncDeviceAccessRule" || reg.list.property != "Name" {
+				t.Errorf("registration %+v", reg)
+			}
+			return
+		}
+	}
+	t.Error("msexchangeserver_activesync_device_access_rule is not registered")
+}

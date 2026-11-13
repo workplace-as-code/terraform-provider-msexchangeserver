@@ -53,6 +53,7 @@ When a built-in role grants much more than the provider needs, the script create
 | `terraform-msexchangeserver Databases` | **Databases** | `Get-` and `Set-MailboxDatabase` | Mount, dismount, move and remove databases |
 | `terraform-msexchangeserver Certificates` | **Exchange Server Certificates** | `Get-`, `Import-`, `Enable-` and `Remove-ExchangeCertificate` | Export private keys |
 | `terraform-msexchangeserver POP and IMAP` | **POP3 And IMAP4 Protocols** | `Get-` and `Set-PopSettings`, `Get-` and `Set-ImapSettings` | Approve or block the features flighted to every server (`Set-ExchangeFeature`) |
+| `terraform-msexchangeserver ActiveSync` | **Organization Client Access** | `Get-` and `Set-ActiveSyncOrganizationSettings`, the ActiveSync device access rule cmdlets | Change the protocols of each user (`Set-CASMailbox`), the organization configuration and the authentication servers |
 | `terraform-msexchangeserver Audit Log` | **Audit Logs** | `Get-` and `Set-AdminAuditLogConfig` | Change mailboxes, bypass mailbox auditing and search the audit logs |
 
 The names above are the defaults, `<role group> <name>`. For a naming convention, `-RoleGroupName` names the role group, `-CustomRolePrefix` replaces the prefix of the custom roles (`-CustomRolePrefix CR-EXCH-TF-` gives `CR-EXCH-TF-Certificates`), and `-CustomRoleNames` names each custom role (`-CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }`). The provider does not depend on these names. After a rename, `-Apply -RemoveExtraRoles` deletes the old custom roles.

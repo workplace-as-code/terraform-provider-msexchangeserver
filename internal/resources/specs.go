@@ -112,6 +112,23 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName:    "activesync_organization_settings",
+		noun:        "ActiveSyncOrganizationSettings",
+		singleton:   true,
+		description: "Manages the Exchange ActiveSync settings of the organization: what happens to mobile devices that match no device access rule",
+		fields: []field{
+			enumAttr("default_access_level", "DefaultAccessLevel", "Access of the devices that match no "+
+				"`msexchangeserver_activesync_device_access_rule`.", "Allow", "Block", "Quarantine"),
+			listAttr("admin_mail_recipients", "AdminMailRecipients", "Email addresses notified when a device is quarantined."),
+			stringAttr("user_mail_insert", "UserMailInsert",
+				"Text added to the message sent to users whose device is quarantined, up to 256 characters."),
+			stringAttr("ota_notification_mail_insert", "OtaNotificationMailInsert",
+				"Text added to the message sent to users after they set up their mobile device."),
+			boolAttr("allow_access_for_unsupported_platform", "AllowAccessForUnSupportedPlatform",
+				"Let devices that do not support ActiveSync policies connect."),
+		},
+	},
+	{
 		typeName:    "admin_audit_log_config",
 		noun:        "AdminAuditLogConfig",
 		singleton:   true,

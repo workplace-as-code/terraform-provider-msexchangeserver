@@ -1,0 +1,1 @@
+terraform import msexchangeserver_activesync_organization_settings.this "default"

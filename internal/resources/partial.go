@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -210,4 +211,15 @@ func clientFromProviderData(req resource.ConfigureRequest, resp *resource.Config
 // parameters only then.
 func known(v attr.Value) bool {
 	return !v.IsNull() && !v.IsUnknown()
+}
+
+// stateSetter and diagAppender let a write helper fill the state and the
+// diagnostics of both Create and Update responses.
+type stateSetter interface {
+	Set(ctx context.Context, val any) diag.Diagnostics
+}
+
+type diagAppender interface {
+	AddError(summary, detail string)
+	Append(in ...diag.Diagnostic)
 }

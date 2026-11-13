@@ -115,6 +115,8 @@ $ProviderRoles = @(
 # - Audit Logs: Set-Mailbox, mailbox audit bypass and the audit log searches.
 # - POP3 And IMAP4 Protocols: Set-ExchangeFeature, which approves or blocks the
 #   features flighted to every server.
+# - Organization Client Access: Set-CASMailbox (each user's protocols),
+#   Set-OrganizationConfig, authentication servers and partner applications.
 $CustomRoles = @(
     @{ Name = "Retention"; Parent = "Retention Management"; Cmdlets = @(
         "Get-Mailbox",
@@ -176,6 +178,14 @@ $CustomRoles = @(
         "Set-ImapSettings",
         "Set-PopSettings"
     ) },
+    @{ Name = "ActiveSync"; Parent = "Organization Client Access"; Cmdlets = @(
+        "Get-ActiveSyncDeviceAccessRule",
+        "Get-ActiveSyncOrganizationSettings",
+        "New-ActiveSyncDeviceAccessRule",
+        "Remove-ActiveSyncDeviceAccessRule",
+        "Set-ActiveSyncDeviceAccessRule",
+        "Set-ActiveSyncOrganizationSettings"
+    ) },
     @{ Name = "Audit Log"; Parent = "Audit Logs"; Cmdlets = @(
         "Get-AdminAuditLogConfig",
         "Set-AdminAuditLogConfig"
@@ -213,6 +223,8 @@ $ProviderCmdlets = @(
     "Enable-JournalRule",
     "Enable-TransportRule",
     "Get-AcceptedDomain",
+    "Get-ActiveSyncDeviceAccessRule",
+    "Get-ActiveSyncOrganizationSettings",
     "Get-ActiveSyncVirtualDirectory",
     "Get-AdminAuditLogConfig",
     "Get-ClientAccessService",
@@ -245,6 +257,7 @@ $ProviderCmdlets = @(
     "Get-WebServicesVirtualDirectory",
     "Import-ExchangeCertificate",
     "New-AcceptedDomain",
+    "New-ActiveSyncDeviceAccessRule",
     "New-EmailAddressPolicy",
     "New-JournalRule",
     "New-MobileDeviceMailboxPolicy",
@@ -256,6 +269,7 @@ $ProviderCmdlets = @(
     "New-SendConnector",
     "New-TransportRule",
     "Remove-AcceptedDomain",
+    "Remove-ActiveSyncDeviceAccessRule",
     "Remove-EmailAddressPolicy",
     "Remove-ExchangeCertificate",
     "Remove-JournalRule",
@@ -269,6 +283,8 @@ $ProviderCmdlets = @(
     "Remove-TransportRule",
     "Set-ADServerSettings",
     "Set-AcceptedDomain",
+    "Set-ActiveSyncDeviceAccessRule",
+    "Set-ActiveSyncOrganizationSettings",
     "Set-ActiveSyncVirtualDirectory",
     "Set-AdminAuditLogConfig",
     "Set-ClientAccessService",

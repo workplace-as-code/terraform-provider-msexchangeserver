@@ -4,6 +4,8 @@ Enable-ExchangeCertificate
 Enable-JournalRule
 Enable-TransportRule
 Get-AcceptedDomain
+Get-ActiveSyncDeviceAccessRule
+Get-ActiveSyncOrganizationSettings
 Get-ActiveSyncVirtualDirectory
 Get-AdminAuditLogConfig
 Get-ClientAccessService
@@ -36,6 +38,7 @@ Get-TransportService
 Get-WebServicesVirtualDirectory
 Import-ExchangeCertificate
 New-AcceptedDomain
+New-ActiveSyncDeviceAccessRule
 New-EmailAddressPolicy
 New-JournalRule
 New-MobileDeviceMailboxPolicy
@@ -47,6 +50,7 @@ New-RetentionPolicyTag
 New-SendConnector
 New-TransportRule
 Remove-AcceptedDomain
+Remove-ActiveSyncDeviceAccessRule
 Remove-EmailAddressPolicy
 Remove-ExchangeCertificate
 Remove-JournalRule
@@ -60,6 +64,8 @@ Remove-SendConnector
 Remove-TransportRule
 Set-ADServerSettings
 Set-AcceptedDomain
+Set-ActiveSyncDeviceAccessRule
+Set-ActiveSyncOrganizationSettings
 Set-ActiveSyncVirtualDirectory
 Set-AdminAuditLogConfig
 Set-ClientAccessService
