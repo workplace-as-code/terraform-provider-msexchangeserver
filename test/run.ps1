@@ -548,6 +548,11 @@ try {
     # imported policy has none, so the first apply only records it. It applies
     # nothing, since no setting of the policy changes.
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update "-target=msexchangeserver_email_address_policy.test") "Recording apply_to_recipients after import"
+    # An imported filter holds Exchange's text, with parentheses: the first apply
+    # writes the same filter in the configured form.
+    $filters = @("address_list.test", "address_list.child", "address_list.rooms", "global_address_list.test") |
+        ForEach-Object { "-target=msexchangeserver_$_" }
+    Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update @filters) "Recording the filters after import"
     Assert-NoChanges "Drift check after import" @("-var", "phase=update")
 
     # -----------------------------------------------------------------------
