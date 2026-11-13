@@ -74,21 +74,12 @@ type field struct {
 	nonEmpty     bool // stringField that refuses "" (see pathAttr)
 	// changedElsewhere: another resource changes it (see changedElsewhereAttr).
 	changedElsewhere bool
-	trueOnly         bool // boolField that refuses false (see trueOnlyAttr)
 	caseless         bool // stringField compared without regard to case (see caselessAttr)
 }
 
 // filterAttr is an OPATH recipient filter such as RecipientFilter.
 func filterAttr(name, param, desc string) field {
 	return field{name: name, param: param, kind: filterField, desc: desc}
-}
-
-// trueOnlyAttr is a flag that can only be turned on, such as the IsDefault of
-// an offline address book: Exchange refuses to unset a default, another object
-// must take it.
-func trueOnlyAttr(f field) field {
-	f.trueOnly = true
-	return f
 }
 
 // caselessAttr is a string that Exchange may return in another case (a
@@ -360,11 +351,7 @@ func (f field) schemaAttribute() schema.Attribute {
 	}
 	switch f.kind {
 	case boolField:
-		a := optionalBool(f.desc)
-		if f.trueOnly {
-			a.Validators = append(a.Validators, trueOnlyValidator{})
-		}
-		return a
+		return optionalBool(f.desc)
 	case int64Field, daysField, minutesField, sizeField, limitField:
 		a := optionalInt64(f.desc, f.validators...)
 		if f.forceNew {
@@ -1049,19 +1036,4 @@ func warnStateOnlyDestroy(diags *diag.Diagnostics, typeName, reason string) {
 		fmt.Sprintf("msexchangeserver_%s was only removed from the Terraform state", typeName),
 		reason+" Destroying the resource only removes it from the Terraform state: its settings keep their current values. To undo a change made with Terraform, set the previous value and apply before destroying.",
 	)
-}
-
-// trueOnlyValidator refuses false (see trueOnlyAttr).
-type trueOnlyValidator struct{}
-
-func (trueOnlyValidator) Description(context.Context) string { return "can only be set to true" }
-
-func (v trueOnlyValidator) MarkdownDescription(ctx context.Context) string { return v.Description(ctx) }
-
-func (trueOnlyValidator) ValidateBool(_ context.Context, req validator.BoolRequest, resp *validator.BoolResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || req.ConfigValue.ValueBool() {
-		return
-	}
-	resp.Diagnostics.AddAttributeError(req.Path, "Invalid value",
-		"Can only be set to true: Exchange cannot unset a default, make another object the default instead.")
 }

@@ -533,11 +533,11 @@ var objectSpecs = []objectSpec{
 			coupledAttr("oab_distribution", boolAttr("global_web_distribution_enabled", "GlobalWebDistributionEnabled",
 				"Whether every OAB virtual directory of the organization distributes the offline address book. "+
 					"Turning it on removes the `virtual_directories`.")),
-			trueOnlyAttr(boolAttr("is_default", "IsDefault", "Whether this is the default offline address book, "+
-				"used by the mailbox databases that name none. Only `true` can be set: making another offline "+
-				"address book the default turns this one off.")),
+			boolAttr("is_default", "IsDefault", "Whether this is the default offline address book, used by the "+
+				"mailbox databases that name none. It cannot be set to `false` on the default one: set it to "+
+				"`true` on another offline address book, which turns this one off."),
 		},
-		planCheck: checkOabDistribution,
+		planCheck: checkOfflineAddressBook,
 	},
 	{
 		typeName: "address_book_policy",

@@ -46,8 +46,8 @@ func TestAddressBookSpecs(t *testing.T) {
 		t.Error("global_address_list: recipient_filter must be a filter")
 	}
 	oab := fieldsByName(specByType(t, "offline_address_book"))
-	if !oab["is_default"].trueOnly || oab["address_lists"].kind != setField || oab["virtual_directories"].kind != setField {
-		t.Error("offline_address_book: is_default true only, address_lists and virtual_directories sets")
+	if oab["is_default"].kind != boolField || oab["address_lists"].kind != setField || oab["virtual_directories"].kind != setField {
+		t.Error("offline_address_book: is_default bool, address_lists and virtual_directories sets")
 	}
 	if oab["virtual_directories"].coupled == "" || oab["virtual_directories"].coupled != oab["global_web_distribution_enabled"].coupled {
 		t.Error("offline_address_book: virtual_directories and global_web_distribution_enabled must be coupled")
@@ -108,6 +108,29 @@ func TestOabWebAndVirtualDirectoriesRefused(t *testing.T) {
 	for i, c := range cases {
 		config := map[string]attr.Value{"virtual_directories": c.vdirs, "global_web_distribution_enabled": c.web}
 		if d := check(config, config, nil); d.HasError() != c.refused {
+			t.Errorf("case %d: refused %v, want %v", i, d.HasError(), c.refused)
+		}
+	}
+}
+
+// Exchange refuses to unset the default OAB: false is refused when the OAB is
+// the default, and passes when it is not (a generated configuration writes
+// is_default = false for every other OAB).
+func TestOabIsDefaultFalseRefusedOnDefault(t *testing.T) {
+	check := specByType(t, "offline_address_book").planCheck
+	isDefault := func(v attr.Value) map[string]attr.Value { return map[string]attr.Value{"is_default": v} }
+	cases := []struct {
+		config, state map[string]attr.Value
+		refused       bool
+	}{
+		{isDefault(types.BoolValue(false)), isDefault(types.BoolValue(true)), true},
+		{isDefault(types.BoolValue(false)), isDefault(types.BoolValue(false)), false},
+		{isDefault(types.BoolValue(false)), nil, false},
+		{isDefault(types.BoolValue(true)), isDefault(types.BoolValue(false)), false},
+		{isDefault(types.BoolNull()), isDefault(types.BoolValue(true)), false},
+	}
+	for i, c := range cases {
+		if d := check(c.config, c.config, c.state); d.HasError() != c.refused {
 			t.Errorf("case %d: refused %v, want %v", i, d.HasError(), c.refused)
 		}
 	}

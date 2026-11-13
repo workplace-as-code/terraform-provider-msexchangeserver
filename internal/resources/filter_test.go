@@ -1,13 +1,10 @@
 package resources
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -84,31 +81,6 @@ func TestCaselessKeepsConfiguredCase(t *testing.T) {
 	state, _ := r.fromAPI(prior, filterOutput(rewrittenFilter), nil)
 	if got := state.Attributes()["recipient_container"].(types.String).ValueString(); got != "Contoso.com/PARIS" {
 		t.Errorf("recipient_container = %q, want the configured case", got)
-	}
-}
-
-// trueOnlyAttr refuses false: Exchange cannot unset a default, another object
-// must take it.
-func TestTrueOnlyRefusesFalse(t *testing.T) {
-	a, ok := trueOnlyAttr(boolAttr("is_default", "IsDefault", "d")).schemaAttribute().(schema.BoolAttribute)
-	if !ok {
-		t.Fatal("trueOnlyAttr is not a bool attribute")
-	}
-	check := func(v bool) bool {
-		for _, val := range a.Validators {
-			resp := &validator.BoolResponse{}
-			val.ValidateBool(context.Background(), validator.BoolRequest{ConfigValue: types.BoolValue(v)}, resp)
-			if resp.Diagnostics.HasError() {
-				return true
-			}
-		}
-		return false
-	}
-	if !check(false) {
-		t.Error("false passes validation")
-	}
-	if check(true) {
-		t.Error("true is refused")
 	}
 }
 

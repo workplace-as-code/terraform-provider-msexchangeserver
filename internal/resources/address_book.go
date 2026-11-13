@@ -52,10 +52,18 @@ func checkDefaultGAL(_, plan, state map[string]attr.Value) diag.Diagnostics {
 	return diags
 }
 
-// checkOabDistribution refuses virtual directories with web distribution on:
-// Exchange refuses the combination.
-func checkOabDistribution(config, _, _ map[string]attr.Value) diag.Diagnostics {
+// checkOfflineAddressBook refuses what Exchange refuses: virtual directories
+// with web distribution on, and unsetting the default offline address book
+// (another one must take the default). is_default = false passes on an offline
+// address book that is not the default: there is nothing to write.
+func checkOfflineAddressBook(config, _, state map[string]attr.Value) diag.Diagnostics {
 	var diags diag.Diagnostics
+	wanted, _ := config["is_default"].(types.Bool)
+	current, _ := state["is_default"].(types.Bool)
+	if known(wanted) && !wanted.ValueBool() && known(current) && current.ValueBool() {
+		diags.AddAttributeError(path.Root("is_default"), "The default offline address book cannot be unset",
+			"Exchange refuses it: set is_default = true on another offline address book instead.")
+	}
 	web, _ := config["global_web_distribution_enabled"].(types.Bool)
 	vdirs, _ := config["virtual_directories"].(types.Set)
 	if known(web) && web.ValueBool() && known(vdirs) && len(vdirs.Elements()) > 0 {

@@ -35,7 +35,7 @@ output "default_oab_lists" {
 - `generating_mailbox` (String) Name of the arbitration mailbox that generates the offline address book, for example `SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}`.
 - `global_web_distribution_enabled` (Boolean) Whether every OAB virtual directory of the organization distributes the offline address book. Turning it on removes the `virtual_directories`.
 - `id` (String) The object name (same as `name`).
-- `is_default` (Boolean) Whether this is the default offline address book, used by the mailbox databases that name none. Only `true` can be set: making another offline address book the default turns this one off.
+- `is_default` (Boolean) Whether this is the default offline address book, used by the mailbox databases that name none. It cannot be set to `false` on the default one: set it to `true` on another offline address book, which turns this one off.
 - `virtual_directories` (Set of String) OAB virtual directories that distribute the offline address book, for example `EX01\OAB (Default Web Site)`. Cannot be set with `global_web_distribution_enabled = true`.
 
 ## Permissions
