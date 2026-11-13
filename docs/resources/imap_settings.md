@@ -48,7 +48,7 @@ resource "msexchangeserver_imap_settings" "ex01" {
 
 ## Permissions
 
-The provider's account needs `Get-ImapSettings` and `Set-ImapSettings`, from the **POP3 And IMAP4 Protocols** management role, and `Get-ExchangeServer`. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+The provider's account needs `Get-ImapSettings` and `Set-ImapSettings`, from the **POP3 And IMAP4 Protocols** management role, and `Get-ExchangeServer`. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants the POP3 and IMAP4 cmdlets through a custom role that holds only them (the built-in role can also approve or block the features flighted to every server), and `Get-ExchangeServer` through its Transport Services custom role. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
 
 ## Microsoft documentation
 

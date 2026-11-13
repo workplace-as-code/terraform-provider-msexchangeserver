@@ -32,9 +32,9 @@ Remove-PSSession $session
 [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) creates a role group with only the management roles that contain the cmdlets the provider runs, and adds the write account to it. Unlike Organization Management, the group cannot create, delete or change mailboxes and other recipients, nor create or remove servers, databases or virtual directories. Its roles:
 
 - **E-Mail Address Policies**
+- **Journaling**
 - **Organization Configuration**
 - **Organization Transport Settings**
-- **POP3 And IMAP4 Protocols**
 - **Receive Connectors**
 - **Recipient Policies**
 - **Remote and Accepted Domains**
@@ -52,11 +52,19 @@ When a built-in role grants much more than the provider needs, the script create
 | `terraform-msexchangeserver Transport Services` | **Exchange Servers** | `Get-ExchangeServer`, `Get-` and `Set-TransportService`, `Get-` and `Set-FrontendTransportService` | Change DAG membership, server component states and every server setting |
 | `terraform-msexchangeserver Databases` | **Databases** | `Get-` and `Set-MailboxDatabase` | Mount, dismount, move and remove databases |
 | `terraform-msexchangeserver Certificates` | **Exchange Server Certificates** | `Get-`, `Import-`, `Enable-` and `Remove-ExchangeCertificate` | Export private keys |
+| `terraform-msexchangeserver POP and IMAP` | **POP3 And IMAP4 Protocols** | `Get-` and `Set-PopSettings`, `Get-` and `Set-ImapSettings` | Approve or block the features flighted to every server (`Set-ExchangeFeature`) |
+| `terraform-msexchangeserver ActiveSync` | **Organization Client Access** | `Get-` and `Set-ActiveSyncOrganizationSettings`, the ActiveSync device access rule cmdlets | Change the protocols of each user (`Set-CASMailbox`), the organization configuration and the authentication servers |
 | `terraform-msexchangeserver Audit Log` | **Audit Logs** | `Get-` and `Set-AdminAuditLogConfig` | Change mailboxes, bypass mailbox auditing and search the audit logs |
 
 The names above are the defaults, `<role group> <name>`. For a naming convention, `-RoleGroupName` names the role group, `-CustomRolePrefix` replaces the prefix of the custom roles (`-CustomRolePrefix CR-EXCH-TF-` gives `CR-EXCH-TF-Certificates`), and `-CustomRoleNames` names each custom role (`-CustomRoleNames @{ Certificates = "CR-EXCH-TF-CERT" }`). The provider does not depend on these names. After a rename, `-Apply -RemoveExtraRoles` deletes the old custom roles.
 
-A read-only account (for `terraform plan`) needs no new role group: the built-in **View-Only Organization Management** role group contains every cmdlet the provider reads with.
+A read-only account (for `terraform plan`) gets the built-in **View-Only Organization Management** role group, and a read role group, `terraform-msexchangeserver-read` by default (`-ReadRoleGroupName` names it), for the `Get-` cmdlets that View-Only Organization Management lacks:
+
+| Custom role | From | Keeps |
+|---|---|---|
+| `terraform-msexchangeserver Read` | **Organization Configuration** | `Get-AuthenticationPolicy` |
+
+`-ReadMember` adds the read account to both groups.
 
 The script first checks with Exchange that these roles contain every cmdlet of the provider, and stops if one is missing. Run it in the Exchange Management Shell as a member of Organization Management:
 

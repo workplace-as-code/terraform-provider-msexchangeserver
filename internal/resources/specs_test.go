@@ -380,3 +380,106 @@ func TestLogAgeUnderADayReadsAsOneDay(t *testing.T) {
 		}
 	}
 }
+
+func TestJournalRuleSpec(t *testing.T) {
+	s := specByType(t, "journal_rule")
+	if s.scriptName() != "journal_rule.ps1" || s.singleton || s.adopted || s.edge {
+		t.Errorf("script %s, singleton %v, adopted %v, edge %v: want a Mailbox object on journal_rule.ps1",
+			s.scriptName(), s.singleton, s.adopted, s.edge)
+	}
+	names := map[string]field{}
+	for _, f := range s.fields {
+		names[f.name] = f
+	}
+	for _, n := range []string{"journal_email_address", "recipient", "scope", "enabled"} {
+		if _, ok := names[n]; !ok {
+			t.Errorf("no field %s", n)
+		}
+	}
+	if got := strings.Join(names["scope"].values, ","); got != "Global,Internal,External" {
+		t.Errorf("scope values %s", got)
+	}
+}
+
+func TestActiveSyncOrganizationSettingsSpec(t *testing.T) {
+	s := specByType(t, "activesync_organization_settings")
+	if !s.singleton || s.edge || s.edgeOnly {
+		t.Errorf("singleton %v, edge %v/%v: want a Mailbox singleton", s.singleton, s.edge, s.edgeOnly)
+	}
+	for _, f := range s.fields {
+		if f.name == "default_access_level" && strings.Join(f.values, ",") != "Allow,Block,Quarantine" {
+			t.Errorf("default_access_level values %v", f.values)
+		}
+	}
+}
+
+// The device access rules are a hand-written resource, registered with their
+// list query and kept off Edge.
+func TestActiveSyncDeviceAccessRuleRegistered(t *testing.T) {
+	for _, reg := range registrations() {
+		var resp resource.MetadataResponse
+		reg.newResource().Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "msexchangeserver"}, &resp)
+		if resp.TypeName == "msexchangeserver_activesync_device_access_rule" {
+			if reg.edge || reg.list.noun != "ActiveSyncDeviceAccessRule" || reg.list.property != "Name" {
+				t.Errorf("registration %+v", reg)
+			}
+			return
+		}
+	}
+	t.Error("msexchangeserver_activesync_device_access_rule is not registered")
+}
+
+func TestAuthenticationPolicySpec(t *testing.T) {
+	s := specByType(t, "authentication_policy")
+	if s.singleton || s.adopted || s.edge || s.scriptName() != "object.ps1" {
+		t.Errorf("singleton %v, adopted %v, edge %v, script %s", s.singleton, s.adopted, s.edge, s.scriptName())
+	}
+	params := map[string]bool{}
+	for _, f := range s.fields {
+		params[f.param] = f.kind == boolField
+	}
+	for _, protocol := range []string{"ActiveSync", "Autodiscover", "Imap", "Mapi", "OfflineAddressBook", "Pop", "Rpc", "WebServices"} {
+		for _, kind := range []string{"Legacy", "Modern"} {
+			if p := "Block" + kind + "Auth" + protocol; !params[p] {
+				t.Errorf("no boolean field for %s", p)
+			}
+		}
+	}
+	if len(s.fields) != 16 {
+		t.Errorf("%d fields, want 16", len(s.fields))
+	}
+}
+
+// default_authentication_policy: a name sets it, "" clears it, and an
+// unconfigured attribute sends nothing.
+func TestOrganizationConfigDefaultAuthenticationPolicyParams(t *testing.T) {
+	r := &organizationConfigResource{}
+	for value, want := range map[types.String]map[string]string{
+		types.StringValue("Block Basic"): {"DefaultAuthenticationPolicy": "Block Basic"},
+		types.StringValue(""):            {"ClearDefaultAuthenticationPolicy": "true"},
+		types.StringNull():               {},
+		types.StringUnknown():            {},
+	} {
+		p := r.buildSetParams(organizationConfigModel{DefaultAuthenticationPolicy: value})
+		for _, k := range []string{"DefaultAuthenticationPolicy", "ClearDefaultAuthenticationPolicy"} {
+			if p[k] != want[k] {
+				t.Errorf("%s: %s = %q, want %q", value, k, p[k], want[k])
+			}
+		}
+	}
+}
+
+// Exchange reads the default policy back with its own case (orgwidedefault
+// becomes OrgWideDefault): the state keeps the configured case, and only a
+// real change shows.
+func TestOrganizationConfigKeepsConfiguredPolicyCase(t *testing.T) {
+	prior := organizationConfigModel{DefaultAuthenticationPolicy: types.StringValue("orgwidedefault")}
+	got := organizationConfigFromAPI(prior, organizationConfigAPIResponse{DefaultAuthenticationPolicy: "OrgWideDefault"})
+	if got.DefaultAuthenticationPolicy.ValueString() != "orgwidedefault" {
+		t.Errorf("same policy, other case: %s", got.DefaultAuthenticationPolicy)
+	}
+	got = organizationConfigFromAPI(prior, organizationConfigAPIResponse{DefaultAuthenticationPolicy: "Block Basic"})
+	if got.DefaultAuthenticationPolicy.ValueString() != "Block Basic" {
+		t.Errorf("another policy: %s", got.DefaultAuthenticationPolicy)
+	}
+}

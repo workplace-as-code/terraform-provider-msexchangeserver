@@ -1,0 +1,43 @@
+---
+page_title: "{{.Name}} ({{.Type}}) - {{.ProviderName}}"
+subcategory: "Clients and devices"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Permissions
+
+The provider's account needs these cmdlets of the **Organization Client Access** management role. The role group created by [`tools/new_role_group.ps1`](https://github.com/workplace-as-code/terraform-provider-msexchangeserver/blob/main/tools/new_role_group.ps1) grants them through a custom role that holds only the ActiveSync cmdlets: the built-in role can also change the protocols of each user and the organization configuration. See the [Authentication guide](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/authentication).
+
+## Microsoft documentation
+
+- [`New-ActiveSyncDeviceAccessRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/new-activesyncdeviceaccessrule?view=exchange-ps)
+- [`Get-ActiveSyncDeviceAccessRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/get-activesyncdeviceaccessrule?view=exchange-ps)
+- [`Set-ActiveSyncDeviceAccessRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/set-activesyncdeviceaccessrule?view=exchange-ps)
+- [`Remove-ActiveSyncDeviceAccessRule`](https://learn.microsoft.com/powershell/module/exchangepowershell/remove-activesyncdeviceaccessrule?view=exchange-ps)
+
+## Import
+
+Import using the rule name, `<query_string> (<characteristic>)`:
+
+{{ tffile .ImportIDConfigFile }}
+
+Or by identity (Terraform 1.12 and later):
+
+{{ tffile .ImportIdentityConfigFile }}
+
+Or with the CLI:
+
+{{ codefile "shell" .ImportFile }}
+
+To import every existing object at once, see [Import an existing organization](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/guides/import_existing).

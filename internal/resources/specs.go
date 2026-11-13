@@ -94,6 +94,51 @@ var objectSpecs = []objectSpec{
 		},
 	},
 	{
+		typeName:    "journal_rule",
+		noun:        "JournalRule",
+		script:      "journal_rule.ps1",
+		description: "Manages a journal rule, which sends a report of the matching messages to an archive",
+		notes: "`journal_email_address` is required to create a rule. Journal rules need Exchange Enterprise client " +
+			"access licenses. Exchange sends the journal reports it cannot deliver to " +
+			"`msexchangeserver_transport_config.journaling_report_ndr_to`.",
+		fields: []field{
+			stringAttr("journal_email_address", "JournalEmailAddress",
+				"Address that receives the journal reports: a journaling mailbox or an archiving system."),
+			stringAttr("recipient", "Recipient",
+				"SMTP address of the mailbox, contact or group whose messages are journaled. `\"\"` journals every recipient."),
+			enumAttr("scope", "Scope", "Messages the rule journals: all of them, internal ones or external ones.",
+				"Global", "Internal", "External"),
+			boolAttr("enabled", "Enabled", "Whether the rule is enabled. A rule created disabled never journals a message."),
+		},
+	},
+	{
+		typeName:    "activesync_organization_settings",
+		noun:        "ActiveSyncOrganizationSettings",
+		singleton:   true,
+		description: "Manages the Exchange ActiveSync settings of the organization: what happens to mobile devices that match no device access rule",
+		fields: []field{
+			enumAttr("default_access_level", "DefaultAccessLevel", "Access of the devices that match no "+
+				"`msexchangeserver_activesync_device_access_rule`.", "Allow", "Block", "Quarantine"),
+			listAttr("admin_mail_recipients", "AdminMailRecipients", "Email addresses notified when a device is quarantined."),
+			stringAttr("user_mail_insert", "UserMailInsert",
+				"Text added to the message sent to users whose device is quarantined, up to 256 characters."),
+			stringAttr("ota_notification_mail_insert", "OtaNotificationMailInsert",
+				"Text added to the message sent to users after they set up their mobile device."),
+			boolAttr("allow_access_for_unsupported_platform", "AllowAccessForUnSupportedPlatform",
+				"Let devices that do not support ActiveSync policies connect."),
+		},
+	},
+	{
+		typeName: "authentication_policy",
+		noun:     "AuthenticationPolicy",
+		description: "Manages an authentication policy, which blocks Basic (legacy) or modern authentication protocol by " +
+			"protocol for the users it applies to",
+		notes: "Exchange Server 2019 CU2 and later. A policy applies to the users it is assigned to (`Set-User`, out of the " +
+			"provider's scope) and, as the organization's `default_authentication_policy`, to every other user. Removing " +
+			"the default policy leaves the organization without one. A change can take up to 30 minutes to apply.",
+		fields: authenticationPolicyFields(),
+	},
+	{
 		typeName:    "admin_audit_log_config",
 		noun:        "AdminAuditLogConfig",
 		singleton:   true,
@@ -484,6 +529,32 @@ func popImapSpec(typeName, noun, protocol, service string) objectSpec {
 				"Largest number of connections from one IP address.", int64validator.Between(1, 2147483647)),
 		},
 	}
+}
+
+// authenticationPolicyFields are the Block<Legacy|Modern>Auth<protocol>
+// settings of an authentication policy, Basic first.
+func authenticationPolicyFields() []field {
+	protocols := []struct{ name, param, label string }{
+		{"activesync", "ActiveSync", "Exchange ActiveSync"},
+		{"autodiscover", "Autodiscover", "Autodiscover"},
+		{"imap", "Imap", "IMAP4"},
+		{"mapi", "Mapi", "MAPI over HTTP"},
+		{"offline_address_book", "OfflineAddressBook", "offline address book downloads"},
+		{"pop", "Pop", "POP3"},
+		{"rpc", "Rpc", "Outlook Anywhere (RPC over HTTP)"},
+		{"web_services", "WebServices", "Exchange Web Services"},
+	}
+	var fields []field
+	for _, kind := range []struct{ name, param, label string }{
+		{"legacy", "Legacy", "Basic authentication"},
+		{"modern", "Modern", "modern authentication (OAuth)"},
+	} {
+		for _, p := range protocols {
+			fields = append(fields, boolAttr("block_"+kind.name+"_auth_"+p.name, "Block"+kind.param+"Auth"+p.param,
+				fmt.Sprintf("Block %s for %s.", kind.label, p.label)))
+		}
+	}
+	return fields
 }
 
 // protocolLogNote: the transport services have no switch for the SMTP

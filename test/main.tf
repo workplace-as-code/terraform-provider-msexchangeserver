@@ -82,6 +82,15 @@ variable "oa_internal_client_authentication_method" {
   default     = null
 }
 
+variable "texts" {
+  description = <<-EOT
+    Set by run.ps1: the default authentication policy and the ActiveSync quarantine text of the update, or the
+    originals to restore. An empty map leaves them unmanaged.
+  EOT
+  type        = map(string)
+  default     = {}
+}
+
 variable "settings" {
   description = <<-EOT
     Set by run.ps1: the log, POP3, IMAP4 and audit settings of the update (each original value plus one) or
@@ -149,7 +158,11 @@ import {
   id = "organization"
 }
 
-resource "msexchangeserver_organization_config" "this" {}
+# The update makes the test authentication policy the organization default;
+# run.ps1 puts the original back before the policy is destroyed.
+resource "msexchangeserver_organization_config" "this" {
+  default_authentication_policy = lookup(var.texts, "default_authentication_policy", null)
+}
 
 import {
   to = msexchangeserver_transport_config.this
@@ -340,6 +353,41 @@ import {
 
 resource "msexchangeserver_admin_audit_log_config" "this" {
   admin_audit_log_age_limit_days = lookup(var.settings, "admin_audit_log_config", null)
+}
+
+# Journal rule, created disabled: it never journals a message.
+resource "msexchangeserver_journal_rule" "test" {
+  name                  = "TF-CI-Journal"
+  journal_email_address = "journal@tf-ci-test.example"
+  recipient             = ""
+  scope                 = local.updated ? "External" : "Global"
+  enabled               = false
+}
+
+# ActiveSync: a rule for a device model that does not exist, and the
+# organization settings, imported; run.ps1 restores their quarantine text.
+resource "msexchangeserver_activesync_device_access_rule" "test" {
+  query_string   = "TF-CI-Device"
+  characteristic = "DeviceModel"
+  access_level   = local.updated ? "Quarantine" : "Block"
+}
+
+import {
+  to = msexchangeserver_activesync_organization_settings.this
+  id = "default"
+}
+
+resource "msexchangeserver_activesync_organization_settings" "this" {
+  user_mail_insert = lookup(var.texts, "activesync_user_mail_insert", null)
+}
+
+# Authentication policy assigned to nobody; the update also makes it the
+# organization default (see organization_config above). It blocks only Basic
+# authentication for POP3, then IMAP4.
+resource "msexchangeserver_authentication_policy" "test" {
+  name                   = "TF-CI-AuthPolicy"
+  block_legacy_auth_pop  = true
+  block_legacy_auth_imap = local.updated
 }
 
 # ---------------------------------------------------------------------------

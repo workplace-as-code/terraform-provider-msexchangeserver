@@ -26,6 +26,9 @@ var (
 	// "- **Role**" item per role, alone on its line.
 	guideRoleRe = regexp.MustCompile(`(?m)^- \*\*([^*]+)\*\*$`)
 	quotedRe    = regexp.MustCompile(`"([^"]+)"`)
+	// customRolesRe and readCustomRolesRe match the two tables of custom roles.
+	customRolesRe     = regexp.MustCompile(`(?s)\n\$CustomRoles = @\((.*?)\n\)\n`)
+	readCustomRolesRe = regexp.MustCompile(`(?s)\n\$ReadCustomRoles = @\((.*?)\n\)\n`)
 )
 
 var (
@@ -215,7 +218,8 @@ func TestCustomRoleNames(t *testing.T) {
 		script := `
 $env:MSEXCHANGESERVER_ROLEGROUP_NO_RUN = "1"
 . ./` + roleGroupScript + ` ` + args + `
-($CustomRoles | ForEach-Object { "$($_.Name)=$($_.Role)" }) -join "|"
+((@($CustomRoles) + @($ReadCustomRoles)) | ForEach-Object { "$($_.Name)=$($_.Role)" }) -join "|"
+"group=$ReadRoleGroupName"
 `
 		out, err := exec.Command("pwsh", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
 		return strings.TrimSpace(string(out)), err
@@ -228,6 +232,20 @@ $env:MSEXCHANGESERVER_ROLEGROUP_NO_RUN = "1"
 	out, err = run(`-CustomRolePrefix CR-TF- -CustomRoleNames @{ Certificates = "CR-CERT" }`)
 	if err != nil || !strings.Contains(out, "Certificates=CR-CERT") || !strings.Contains(out, "Databases=CR-TF-Databases") {
 		t.Errorf("prefix and names: %v %s", err, out)
+	}
+	out, err = run(`-RoleGroupName RG-TF -CustomRolePrefix CR-TF- -CustomRoleNames @{ Read = "CR-READ" }`)
+	if err != nil || !strings.Contains(out, "Read=CR-READ") || !strings.Contains(out, "group=RG-TF-read") {
+		t.Errorf("read role and group names: %v %s", err, out)
+	}
+	if out, err = run(`-ReadRoleGroupName RG-TF-RO`); err != nil || !strings.Contains(out, "group=RG-TF-RO") {
+		t.Errorf("-ReadRoleGroupName: %v %s", err, out)
+	}
+	// -RemoveExtraRoles would strip the roles of these groups.
+	for _, args := range []string{`-ReadRoleGroupName "View-Only Organization Management"`,
+		`-RoleGroupName RG-TF -ReadRoleGroupName rg-tf`} {
+		if out, err = run(args); err == nil {
+			t.Errorf("%s must fail: %s", args, out)
+		}
 	}
 	if out, err = run(`-CustomRoleNames @{ Certificate = "CR-CERT" }`); err == nil {
 		t.Errorf("an unknown custom role name must fail: %s", out)
@@ -266,7 +284,11 @@ func TestCustomRolesKeepTheBridgeCmdlets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roles := customRoleRe.FindAllStringSubmatch(string(script), -1)
+	block := customRolesRe.FindStringSubmatch(string(script))
+	if block == nil {
+		t.Fatal("$CustomRoles not found")
+	}
+	roles := customRoleRe.FindAllStringSubmatch(block[1], -1)
 	if len(roles) == 0 {
 		t.Fatal("$CustomRoles entries not found")
 	}
@@ -340,5 +362,73 @@ func TestRunPs1CmdletList(t *testing.T) {
 	data, err := os.ReadFile("../test/cmdlets.txt")
 	if err != nil || string(data) != want {
 		t.Errorf("test/cmdlets.txt is out of date (%v): write the cmdlets of $ProviderCmdlets in it, one per line:\n%s", err, want)
+	}
+}
+
+// The built-in POP3 And IMAP4 Protocols role also has Set-ExchangeFeature,
+// which approves or blocks the features flighted to every server: the role
+// group gets a custom role that keeps only the POP3 and IMAP4 cmdlets.
+func TestPopImapThroughACustomRole(t *testing.T) {
+	if roles := quotedList(t, rolesRe, "$ProviderRoles"); strings.Contains(strings.Join(roles, ","), "POP3 And IMAP4 Protocols") {
+		t.Errorf("$ProviderRoles grants the built-in POP3 And IMAP4 Protocols role: %v", roles)
+	}
+	script, err := os.ReadFile(roleGroupScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range customRoleRe.FindAllStringSubmatch(string(script), -1) {
+		if role[2] != "POP3 And IMAP4 Protocols" {
+			continue
+		}
+		var kept []string
+		for _, m := range quotedRe.FindAllStringSubmatch(role[3], -1) {
+			kept = append(kept, m[1])
+		}
+		if got := strings.Join(kept, ","); got != "Get-ImapSettings,Get-PopSettings,Set-ImapSettings,Set-PopSettings" {
+			t.Errorf("custom role %s keeps %s", role[1], got)
+		}
+		return
+	}
+	t.Fatal("no custom role from POP3 And IMAP4 Protocols")
+}
+
+// The read role group holds the Get- cmdlets that View-Only Organization
+// Management lacks, and nothing else: Get-AuthenticationPolicy is only in
+// Organization Configuration.
+func TestReadCustomRolesKeepOnlyGetCmdlets(t *testing.T) {
+	script, err := os.ReadFile(roleGroupScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := readCustomRolesRe.FindStringSubmatch(string(script))
+	if block == nil {
+		t.Fatal("$ReadCustomRoles not found")
+	}
+	found := false
+	for _, role := range customRoleRe.FindAllStringSubmatch(block[1], -1) {
+		for _, m := range quotedRe.FindAllStringSubmatch(role[3], -1) {
+			if !strings.HasPrefix(m[1], "Get-") {
+				t.Errorf("read custom role %s keeps %s", role[1], m[1])
+			}
+			if m[1] == "Get-AuthenticationPolicy" && role[2] == "Organization Configuration" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("no read custom role keeps Get-AuthenticationPolicy from Organization Configuration")
+	}
+}
+
+// The authentication guide documents the read role group and its roles.
+func TestGuideListsTheReadRoleGroup(t *testing.T) {
+	guide, err := os.ReadFile(filepath.Join("..", "templates", "guides", "authentication.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"terraform-msexchangeserver-read", "-ReadRoleGroupName", "`terraform-msexchangeserver Read`"} {
+		if !strings.Contains(string(guide), want) {
+			t.Errorf("the authentication guide does not mention %s", want)
+		}
 	}
 }

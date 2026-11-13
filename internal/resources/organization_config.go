@@ -32,6 +32,7 @@ type organizationConfigModel struct {
 	MailTipsExternalRecipientsTipsEnabled types.Bool   `tfsdk:"mail_tips_external_recipients_tips_enabled"`
 	MailTipsLargeAudienceThreshold        types.Int64  `tfsdk:"mail_tips_large_audience_threshold"`
 	OAuth2ClientProfileEnabled            types.Bool   `tfsdk:"oauth2_client_profile_enabled"`
+	DefaultAuthenticationPolicy           types.String `tfsdk:"default_authentication_policy"`
 }
 
 type organizationConfigAPIResponse struct {
@@ -41,6 +42,7 @@ type organizationConfigAPIResponse struct {
 	MailTipsExternalRecipientsTipsEnabled bool   `json:"MailTipsExternalRecipientsTipsEnabled"`
 	MailTipsLargeAudienceThreshold        int64  `json:"MailTipsLargeAudienceThreshold"`
 	OAuth2ClientProfileEnabled            bool   `json:"OAuth2ClientProfileEnabled"`
+	DefaultAuthenticationPolicy           string `json:"DefaultAuthenticationPolicy"`
 }
 
 func NewOrganizationConfigResource() resource.Resource {
@@ -65,6 +67,8 @@ func (r *organizationConfigResource) Schema(_ context.Context, _ resource.Schema
 			"mail_tips_external_recipients_tips_enabled": optionalBool("Show a MailTip when composing a message to external recipients."),
 			"mail_tips_large_audience_threshold":         optionalInt64("Number of recipients above which the large-audience MailTip is shown."),
 			"oauth2_client_profile_enabled":              optionalBool("Enable modern authentication (OAuth 2.0) for Outlook and other clients (hybrid modern authentication)."),
+			"default_authentication_policy": optionalString("Name of the `msexchangeserver_authentication_policy` that applies to the users " +
+				"who have none of their own. `\"\"` removes the default policy."),
 		},
 	}
 }
@@ -105,10 +109,12 @@ func (r *organizationConfigResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(apiResp))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(plan, apiResp))...)
 }
 
 func (r *organizationConfigResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior organizationConfigModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	output, err := r.client.RunScript(ctx, "organization_config.ps1", map[string]string{
 		"Action": "Get",
 	})
@@ -123,7 +129,7 @@ func (r *organizationConfigResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(apiResp))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(prior, apiResp))...)
 }
 
 func (r *organizationConfigResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -148,7 +154,7 @@ func (r *organizationConfigResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(apiResp))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, organizationConfigFromAPI(plan, apiResp))...)
 }
 
 // Delete removes the resource from Terraform state without touching Exchange.
@@ -170,10 +176,21 @@ func (r *organizationConfigResource) buildSetParams(plan organizationConfigModel
 	putBool(p, "MailTipsExternalRecipientsTipsEnabled", plan.MailTipsExternalRecipientsTipsEnabled)
 	putInt64(p, "MailTipsLargeAudienceThreshold", plan.MailTipsLargeAudienceThreshold)
 	putBool(p, "OAuth2ClientProfileEnabled", plan.OAuth2ClientProfileEnabled)
+	// The script treats an empty parameter as not set: clearing the default
+	// policy takes its own flag.
+	if v := plan.DefaultAuthenticationPolicy; !v.IsNull() && !v.IsUnknown() {
+		if v.ValueString() == "" {
+			p["ClearDefaultAuthenticationPolicy"] = "true"
+		} else {
+			p["DefaultAuthenticationPolicy"] = v.ValueString()
+		}
+	}
 	return p
 }
 
-func organizationConfigFromAPI(a organizationConfigAPIResponse) organizationConfigModel {
+// organizationConfigFromAPI builds the state from the bridge response. prior
+// (plan or state) keeps the configured case of the default policy name.
+func organizationConfigFromAPI(prior organizationConfigModel, a organizationConfigAPIResponse) organizationConfigModel {
 	return organizationConfigModel{
 		ID:                                    types.StringValue("organization"),
 		ReadTrackingEnabled:                   types.BoolValue(a.ReadTrackingEnabled),
@@ -181,5 +198,6 @@ func organizationConfigFromAPI(a organizationConfigAPIResponse) organizationConf
 		MailTipsExternalRecipientsTipsEnabled: types.BoolValue(a.MailTipsExternalRecipientsTipsEnabled),
 		MailTipsLargeAudienceThreshold:        types.Int64Value(a.MailTipsLargeAudienceThreshold),
 		OAuth2ClientProfileEnabled:            types.BoolValue(a.OAuth2ClientProfileEnabled),
+		DefaultAuthenticationPolicy:           foldString(prior.DefaultAuthenticationPolicy, a.DefaultAuthenticationPolicy),
 	}
 }

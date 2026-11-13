@@ -26,6 +26,7 @@ resource "msexchangeserver_organization_config" "org" {
 
 ### Optional
 
+- `default_authentication_policy` (String) Name of the `msexchangeserver_authentication_policy` that applies to the users who have none of their own. `""` removes the default policy.
 - `mail_tips_all_tips_enabled` (Boolean) Enable MailTips for the organization. When `false`, all MailTips are disabled regardless of individual settings.
 - `mail_tips_external_recipients_tips_enabled` (Boolean) Show a MailTip when composing a message to external recipients.
 - `mail_tips_large_audience_threshold` (Number) Number of recipients above which the large-audience MailTip is shown.

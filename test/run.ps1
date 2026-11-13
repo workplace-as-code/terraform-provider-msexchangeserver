@@ -100,10 +100,13 @@ $Created = [ordered]@{
     "msexchangeserver_retention_policy_tag.test"    = "TF-CI-RetentionTag"
     "msexchangeserver_send_connector.test"          = "TF-CI-Send"
     "msexchangeserver_receive_connector.test"       = "$((($Server -split '\.')[0]).ToUpper())\TF-CI-Receive"
+    "msexchangeserver_journal_rule.test"            = "TF-CI-Journal"
+    "msexchangeserver_activesync_device_access_rule.test" = "TF-CI-Device (DeviceModel)"
+    "msexchangeserver_authentication_policy.test"   = "TF-CI-AuthPolicy"
 }
 # Organization-wide objects imported by main.tf and never destroyed.
 $Keep = @("msexchangeserver_organization_config.this", "msexchangeserver_transport_config.this",
-    "msexchangeserver_admin_audit_log_config.this")
+    "msexchangeserver_admin_audit_log_config.this", "msexchangeserver_activesync_organization_settings.this")
 # Per-server objects adopted by main.tf (they exist on every server), imported
 # by server name and never destroyed.
 $Adopted = @("owa_virtual_directory", "ecp_virtual_directory", "web_services_virtual_directory",
@@ -118,7 +121,8 @@ $RestoreTargets = @("-target=msexchangeserver_oab_virtual_directory.test", "-tar
     "-target=msexchangeserver_mailbox_database.test",
     "-target=msexchangeserver_transport_service.test", "-target=msexchangeserver_frontend_transport_service.test",
     "-target=msexchangeserver_pop_settings.test", "-target=msexchangeserver_imap_settings.test",
-    "-target=msexchangeserver_admin_audit_log_config.this",
+    "-target=msexchangeserver_admin_audit_log_config.this", "-target=msexchangeserver_organization_config.this",
+    "-target=msexchangeserver_activesync_organization_settings.this",
     "-target=msexchangeserver_exchange_certificate_services.original",
     "-target=msexchangeserver_exchange_certificate_services.original_iis",
     "-target=msexchangeserver_exchange_certificate_services.original_smtp", "-var", "restore=true")
@@ -130,7 +134,8 @@ $ListTypes = @("accepted_domain", "remote_domain", "transport_rule", "owa_mailbo
     "web_services_virtual_directory", "activesync_virtual_directory", "oab_virtual_directory", "mapi_virtual_directory",
     "outlook_anywhere", "client_access_service", "mailbox_database", "send_connector", "receive_connector", "exchange_certificate",
     "exchange_certificate_services", "transport_service", "frontend_transport_service", "pop_settings", "imap_settings",
-    "admin_audit_log_config")
+    "admin_audit_log_config", "journal_rule", "activesync_organization_settings", "activesync_device_access_rule",
+    "authentication_policy")
 
 function Write-Log([string[]]$Lines) { if ($Lines.Count -gt 0) { Add-Content -Path $Log -Value $Lines -Encoding UTF8 } }
 function Write-Step([string]$Message) { Write-Host ""; Write-Host "==> $Message" -ForegroundColor Yellow; Write-Log "", "==> $Message" }
@@ -491,6 +496,21 @@ try {
     Write-Info "Original values: $($restored -join ', ')"
     $AuthUpdate += @("-var", "settings={$($updated -join ',')}")
     $RestoreTargets += @("-var", "settings={$($restored -join ',')}")
+    # Text settings: the test policy becomes the organization default and the
+    # ActiveSync quarantine text changes; the restore writes the originals.
+    $defaultPolicy = [string](Get-StateAttr "msexchangeserver_organization_config.this" "default_authentication_policy")
+    $userMailInsert = [string](Get-StateAttr "msexchangeserver_activesync_organization_settings.this" "user_mail_insert")
+    Write-Info "Original values: default authentication policy '$defaultPolicy', ActiveSync quarantine text '$userMailInsert'"
+    # In variable files: Windows PowerShell 5.1 drops the quotes inside the
+    # arguments of a native command such as terraform.exe.
+    $textsUpdate = Join-Path $PSScriptRoot "texts-update.tfvars.json"
+    $textsRestore = Join-Path $PSScriptRoot "texts-restore.tfvars.json"
+    ConvertTo-Json -Compress -InputObject @{ texts = @{ default_authentication_policy = "TF-CI-AuthPolicy"
+        activesync_user_mail_insert = "[TF-CI-TEST] quarantined" } } | Set-Content -LiteralPath $textsUpdate -Encoding ASCII
+    ConvertTo-Json -Compress -InputObject @{ texts = @{ default_authentication_policy = $defaultPolicy
+        activesync_user_mail_insert = $userMailInsert } } | Set-Content -LiteralPath $textsRestore -Encoding ASCII
+    $AuthUpdate += @("-var-file=$textsUpdate")
+    $RestoreTargets += @("-var-file=$textsRestore")
 
     Write-Step "Update of every test object (phase=update)"
     Assert-Tf (Invoke-Tf apply -auto-approve -no-color -var phase=update @AuthUpdate) "terraform apply (update)"

@@ -23,6 +23,7 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_transport_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/transport_config) | Singleton: organization-wide transport settings |
 | [`msexchangeserver_send_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/send_connector) | Not on Edge (EdgeSync manages them) |
 | [`msexchangeserver_receive_connector`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/receive_connector) | Mailbox and Edge |
+| [`msexchangeserver_journal_rule`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/journal_rule) | Needs Exchange Enterprise client access licenses |
 
 ## Clients, recipients and organization
 
@@ -31,10 +32,13 @@ See the [Authentication guide](https://registry.terraform.io/providers/workplace
 | [`msexchangeserver_organization_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/organization_config) | Singleton |
 | [`msexchangeserver_owa_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/owa_mailbox_policy) | Outlook on the web |
 | [`msexchangeserver_mobile_device_mailbox_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/mobile_device_mailbox_policy) | Exchange ActiveSync devices |
+| [`msexchangeserver_activesync_organization_settings`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/activesync_organization_settings) | Singleton: access of the devices that match no rule |
+| [`msexchangeserver_activesync_device_access_rule`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/activesync_device_access_rule) | Allow, block or quarantine by device type, model, OS or user agent |
 | [`msexchangeserver_email_address_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/email_address_policy) | Every update applies the policy to the matching recipients (`Update-EmailAddressPolicy`) |
 | [`msexchangeserver_retention_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy) | Messaging records management |
 | [`msexchangeserver_retention_policy_tag`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/retention_policy_tag) | |
 | [`msexchangeserver_admin_audit_log_config`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/admin_audit_log_config) | Singleton: administrator audit logging |
+| [`msexchangeserver_authentication_policy`](https://registry.terraform.io/providers/workplace-as-code/msexchangeserver/latest/docs/resources/authentication_policy) | Exchange 2019 CU2 and later; the organization default is set on `msexchangeserver_organization_config` |
 
 ## Servers
 
@@ -77,7 +81,7 @@ Anti-spam agents and address rewriting of Edge Transport servers (`role = "Edge"
 
 ## Data sources
 
-Every resource has a data source of the same name, which reads an object without managing it, except `msexchangeserver_admin_audit_log_config`, `msexchangeserver_content_filter_config`, `msexchangeserver_exchange_certificate_services`, `msexchangeserver_ip_allow_list_config`, `msexchangeserver_ip_block_list_config`, `msexchangeserver_ip_block_list_providers_config`, `msexchangeserver_recipient_filter_config`, `msexchangeserver_sender_filter_config` and `msexchangeserver_transport_config`.
+Every resource has a data source of the same name, which reads an object without managing it, except `msexchangeserver_activesync_device_access_rule`, `msexchangeserver_activesync_organization_settings`, `msexchangeserver_admin_audit_log_config`, `msexchangeserver_content_filter_config`, `msexchangeserver_exchange_certificate_services`, `msexchangeserver_ip_allow_list_config`, `msexchangeserver_ip_block_list_config`, `msexchangeserver_ip_block_list_providers_config`, `msexchangeserver_recipient_filter_config`, `msexchangeserver_sender_filter_config` and `msexchangeserver_transport_config`.
 
 These data sources have no resource:
 

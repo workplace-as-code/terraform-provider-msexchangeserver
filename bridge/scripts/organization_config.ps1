@@ -16,7 +16,10 @@ param(
     [string]$MailTipsAllTipsEnabled             = "",
     [string]$MailTipsExternalRecipientsTipsEnabled = "",
     [string]$MailTipsLargeAudienceThreshold     = "",
-    [string]$OAuth2ClientProfileEnabled         = ""
+    [string]$OAuth2ClientProfileEnabled         = "",
+    # A policy name, or ClearDefaultAuthenticationPolicy=true to remove it.
+    [string]$DefaultAuthenticationPolicy        = "",
+    [string]$ClearDefaultAuthenticationPolicy   = ""
 )
 
 Set-StrictMode -Version Latest
@@ -43,6 +46,7 @@ function Read-Config {
         MailTipsExternalRecipientsTipsEnabled = [bool](Get-PropSafe $config 'MailTipsExternalRecipientsTipsEnabled' $false)
         MailTipsLargeAudienceThreshold        = [int](Get-PropSafe $config 'MailTipsLargeAudienceThreshold' 25)
         OAuth2ClientProfileEnabled            = [bool](Get-PropSafe $config 'OAuth2ClientProfileEnabled' $true)
+        DefaultAuthenticationPolicy           = [string](Get-PropSafe $config 'DefaultAuthenticationPolicy' "")
     } | ConvertTo-Json -Compress
 }
 
@@ -64,6 +68,8 @@ switch ($Action) {
             $params["MailTipsLargeAudienceThreshold"] = [int]$MailTipsLargeAudienceThreshold
         }
         if ($OAuth2ClientProfileEnabled -ne "") { $params["OAuth2ClientProfileEnabled"] = ($OAuth2ClientProfileEnabled -eq "true") }
+        if ($DefaultAuthenticationPolicy -ne "") { $params["DefaultAuthenticationPolicy"] = $DefaultAuthenticationPolicy }
+        if ($ClearDefaultAuthenticationPolicy -eq "true") { $params["DefaultAuthenticationPolicy"] = $null }
 
         if ($params.Count -gt 0) {
             Set-OrganizationConfig @params -ErrorAction Stop
