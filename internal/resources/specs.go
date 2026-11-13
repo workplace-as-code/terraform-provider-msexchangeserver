@@ -488,11 +488,11 @@ var objectSpecs = []objectSpec{
 			"`recipient_filter`, and applying writes it as a custom filter.",
 		fields: []field{
 			stringAttr("display_name", "DisplayName", "The name shown in Outlook. Defaults to `name`."),
-			{
+			referenceAttr(field{
 				name: "container", param: "Container", kind: stringField, forceNew: true,
 				desc: "Name of the parent address list, for a list nested in another one. Empty for a top-level " +
 					"list. Changing it creates a new list.",
-			},
+			}),
 			filterAttr("recipient_filter", "RecipientFilter", "OPATH filter of the recipients in the list, for "+
 				"example `Company -eq 'Contoso' -and RecipientType -eq 'UserMailbox'`. Exchange rewrites it with "+
 				"parentheses: the configured text is kept as long as Exchange returns the text it wrote."),
@@ -523,10 +523,10 @@ var objectSpecs = []objectSpec{
 			"default offline address book cannot be deleted: make another one the default first. The provider " +
 			"never generates the offline address book (`Update-OfflineAddressBook`).",
 		fields: []field{
-			setAttr("address_lists", "AddressLists", "Names of the address lists in the offline address book, "+
-				"usually a GAL."),
-			stringAttr("generating_mailbox", "GeneratingMailbox", "Name of the arbitration mailbox that generates "+
-				"the offline address book, for example `SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}`."),
+			referenceAttr(setAttr("address_lists", "AddressLists", "Names of the address lists in the offline address book, "+
+				"usually a GAL.")),
+			referenceAttr(stringAttr("generating_mailbox", "GeneratingMailbox", "Name of the arbitration mailbox that generates "+
+				"the offline address book, for example `SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}`.")),
 			coupledAttr("oab_distribution", setAttr("virtual_directories", "VirtualDirectories", "OAB virtual "+
 				"directories that distribute the offline address book, for example `EX01\\OAB (Default Web Site)`. "+
 				"Cannot be set with `global_web_distribution_enabled = true`.")),
@@ -548,11 +548,11 @@ var objectSpecs = []objectSpec{
 		notes: "All four references are required to create a policy; they are names of the corresponding " +
 			"resources. Assigning the policy to mailboxes (`Set-Mailbox -AddressBookPolicy`) is not managed.",
 		fields: []field{
-			stringAttr("global_address_list", "GlobalAddressList", "Name of the global address list."),
-			stringAttr("offline_address_book", "OfflineAddressBook", "Name of the offline address book."),
-			stringAttr("room_list", "RoomList", "Name of the address list of the rooms users can book, an address "+
-				"list whose filter selects room mailboxes."),
-			setAttr("address_lists", "AddressLists", "Names of the address lists users see besides the GAL."),
+			referenceAttr(stringAttr("global_address_list", "GlobalAddressList", "Name of the global address list.")),
+			referenceAttr(stringAttr("offline_address_book", "OfflineAddressBook", "Name of the offline address book.")),
+			referenceAttr(stringAttr("room_list", "RoomList", "Name of the address list of the rooms users can book, an address "+
+				"list whose filter selects room mailboxes.")),
+			referenceAttr(setAttr("address_lists", "AddressLists", "Names of the address lists users see besides the GAL.")),
 		},
 	},
 	{

@@ -75,11 +75,21 @@ type field struct {
 	// changedElsewhere: another resource changes it (see changedElsewhereAttr).
 	changedElsewhere bool
 	caseless         bool // stringField compared without regard to case (see caselessAttr)
+	reference        bool // name of another object (see referenceAttr)
 }
 
 // filterAttr is an OPATH recipient filter such as RecipientFilter.
 func filterAttr(name, param, desc string) field {
 	return field{name: name, param: param, kind: filterField, desc: desc}
+}
+
+// referenceAttr is the name of another Exchange object, or a set of names.
+// Exchange accepts it in any case or as an identity ("\Sites\Paris") and
+// reads it back as the plain name: the state keeps the configured spelling
+// while its last part names the same object (see foldReference).
+func referenceAttr(f field) field {
+	f.reference = true
+	return f
 }
 
 // caselessAttr is a string that Exchange may return in another case (a
@@ -863,6 +873,10 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte, recorded map
 			values[f.name] = listValue(toStrings(raw))
 		case setField:
 			values[f.name] = setValue(toStrings(raw))
+			if f.reference {
+				priorSet, _ := priorAttrs[f.name].(types.Set)
+				values[f.name] = foldReferenceSet(priorSet, toStrings(raw))
+			}
 			if len(f.values) > 0 { // enum set: keep the configured case
 				priorSet, _ := priorAttrs[f.name].(types.Set)
 				values[f.name] = foldSet(priorSet, setValue(toStrings(raw)))
@@ -881,9 +895,12 @@ func (r *objectResource) fromAPI(prior types.Object, output []byte, recorded map
 		default:
 			s, _ := raw.(string)
 			values[f.name] = types.StringValue(s)
-			if f.caseless {
+			if f.caseless || f.reference {
 				priorValue, _ := priorAttrs[f.name].(types.String)
 				values[f.name] = foldString(priorValue, s)
+				if f.reference && known(priorValue) && sameReference(priorValue.ValueString(), s) {
+					values[f.name] = priorValue
+				}
 			}
 		}
 	}
@@ -1036,4 +1053,31 @@ func warnStateOnlyDestroy(diags *diag.Diagnostics, typeName, reason string) {
 		fmt.Sprintf("msexchangeserver_%s was only removed from the Terraform state", typeName),
 		reason+" Destroying the resource only removes it from the Terraform state: its settings keep their current values. To undo a change made with Terraform, set the previous value and apply before destroying.",
 	)
+}
+
+// sameReference reports whether a configured reference ("\Sites\paris") names
+// the object Exchange returns by name ("Paris"): its last part, without regard
+// to case.
+func sameReference(configured, api string) bool {
+	parts := strings.FieldsFunc(configured, func(r rune) bool { return r == '\\' })
+	return len(parts) > 0 && strings.EqualFold(parts[len(parts)-1], api)
+}
+
+// foldReferenceSet is foldSet for references: each name Exchange returns keeps
+// the configured spelling of the element that names it.
+func foldReferenceSet(prior types.Set, api []string) types.Set {
+	elems := make([]attr.Value, 0, len(api))
+	for _, a := range api {
+		v := types.StringValue(a)
+		if known(prior) {
+			for _, p := range prior.Elements() {
+				if ps, ok := p.(types.String); ok && known(ps) && sameReference(ps.ValueString(), a) {
+					v = ps
+					break
+				}
+			}
+		}
+		elems = append(elems, v)
+	}
+	return types.SetValueMust(types.StringType, elems)
 }

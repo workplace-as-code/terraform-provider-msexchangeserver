@@ -135,3 +135,46 @@ func TestOabIsDefaultFalseRefusedOnDefault(t *testing.T) {
 		}
 	}
 }
+
+// Exchange accepts a reference in another case or as an identity ("\Sites",
+// "contoso gal") and reads it back as the plain name: the configured spelling
+// stays in the state, or the apply would end in an inconsistent result.
+func TestReferencesKeepConfiguredSpelling(t *testing.T) {
+	r := &objectResource{spec: specByType(t, "address_book_policy")}
+	prior := mustObject(t, r, map[string]string{"name": "Contoso ABP", "global_address_list": "contoso gal",
+		"room_list": `\Rooms`})
+	priorAttrs := prior.Attributes()
+	priorAttrs["address_lists"] = types.SetValueMust(types.StringType,
+		[]attr.Value{types.StringValue(`\Sites\paris`)})
+	prior = types.ObjectValueMust(r.spec.attrTypes(), priorAttrs)
+	output := []byte(`{"Name":"Contoso ABP","GlobalAddressList":"Contoso GAL","OfflineAddressBook":"Contoso OAB",` +
+		`"RoomList":"Rooms","AddressLists":["Paris"]}`)
+	state, diags := r.fromAPI(prior, output, nil)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	got := state.Attributes()
+	if v := got["global_address_list"].(types.String).ValueString(); v != "contoso gal" {
+		t.Errorf("global_address_list = %q, want the configured spelling", v)
+	}
+	if v := got["room_list"].(types.String).ValueString(); v != `\Rooms` {
+		t.Errorf("room_list = %q, want the configured identity", v)
+	}
+	if v := got["address_lists"].(types.Set).Elements(); len(v) != 1 || v[0].(types.String).ValueString() != `\Sites\paris` {
+		t.Errorf("address_lists = %v, want the configured identity", v)
+	}
+	// Another list shows Exchange's name.
+	if v := got["offline_address_book"].(types.String).ValueString(); v != "Contoso OAB" {
+		t.Errorf("offline_address_book = %q", v)
+	}
+}
+
+// The container of a nested list keeps its configured spelling too.
+func TestContainerKeepsConfiguredSpelling(t *testing.T) {
+	r := &objectResource{spec: specByType(t, "address_list")}
+	prior := mustObject(t, r, map[string]string{"name": "Paris", "container": `\sites`})
+	state, _ := r.fromAPI(prior, []byte(`{"Name":"Paris","Container":"Sites"}`), nil)
+	if v := state.Attributes()["container"].(types.String).ValueString(); v != `\sites` {
+		t.Errorf("container = %q, want the configured spelling", v)
+	}
+}

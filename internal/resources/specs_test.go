@@ -93,6 +93,8 @@ func mustObject(t *testing.T, r *objectResource, values map[string]string) types
 			attrs[name] = types.Int64Null()
 		case types.StringType:
 			attrs[name] = types.StringNull()
+		case types.SetType{ElemType: types.StringType}:
+			attrs[name] = types.SetNull(types.StringType)
 		default:
 			attrs[name] = types.ListNull(types.StringType)
 		}
