@@ -503,12 +503,25 @@ if ($readGroupRoles.Count -gt 0) {
     Sync-RoleGroup $ReadRoleGroupName $readGroupRoles "Read roles for the workplace-as-code/msexchangeserver Terraform provider"
 }
 
+# Invoke-Replicated runs $Action again, for up to two minutes, while Exchange
+# cannot find the object: a role group created a moment ago may not have
+# reached the domain controller the next cmdlet reads.
+function Invoke-Replicated([scriptblock]$Action) {
+    $deadline = (Get-Date).AddMinutes(2)
+    while ($true) {
+        try { return & $Action } catch {
+            if ($_.Exception.Message -notmatch "couldn't be found" -or (Get-Date) -gt $deadline) { throw }
+            Start-Sleep -Seconds 5
+        }
+    }
+}
+
 # Add-RoleGroupMember fails when the account is already a member.
 function Add-MissingMember([string]$Group, [string]$Account) {
     $user = Get-User -Identity $Account
-    $members = @(Get-RoleGroupMember -Identity $Group | ForEach-Object { [string]$_.Guid })
+    $members = @(Invoke-Replicated { Get-RoleGroupMember -Identity $Group -ErrorAction Stop } | ForEach-Object { [string]$_.Guid })
     if ($members -notcontains [string]$user.Guid) {
-        Add-RoleGroupMember -Identity $Group -Member $user.Identity -BypassSecurityGroupManagerCheck
+        Invoke-Replicated { Add-RoleGroupMember -Identity $Group -Member $user.Identity -BypassSecurityGroupManagerCheck -ErrorAction Stop }
         Write-Host "Added $Account to '$Group'."
     }
 }
