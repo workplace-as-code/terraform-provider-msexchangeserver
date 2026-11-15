@@ -11,6 +11,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/workplace-as-code/terraform-provider-msexchangeserver/internal/client"
 )
 
 // TestEveryResourceIsListed checks that each resource has an identity, can be
@@ -180,4 +183,26 @@ func listRequest(t *testing.T, r *identityResource, includeResource bool) list.L
 		t.Fatal(s.Diagnostics, i.Diagnostics)
 	}
 	return list.ListRequest{IncludeResource: includeResource, ResourceSchema: s.Schema, ResourceIdentitySchema: i.IdentitySchema}
+}
+
+// TestEdgeRefusalNamesTheResource checks the error of a resource planned on an
+// Edge Transport server: it names the resource and the role to use, and does
+// not call a per-server setting an organization setting.
+func TestEdgeRefusalNamesTheResource(t *testing.T) {
+	r := &identityResource{Resource: &fakeResource{}, edge: false, role: client.RoleEdge}
+	plan := tfsdk.Plan{Raw: tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})}
+	var resp resource.ModifyPlanResponse
+	r.ModifyPlan(context.Background(), resource.ModifyPlanRequest{Plan: plan}, &resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("a resource that Edge Transport servers do not have must be refused")
+	}
+	detail := resp.Diagnostics.Errors()[0].Detail()
+	for _, want := range []string{"msexchangeserver_fake", `role is "Mailbox"`} {
+		if !strings.Contains(detail, want) {
+			t.Errorf("detail %q must contain %q", detail, want)
+		}
+	}
+	if strings.Contains(detail, "organization setting") {
+		t.Errorf("detail %q must not call every resource an organization setting", detail)
+	}
 }
