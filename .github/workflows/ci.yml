@@ -45,8 +45,8 @@ jobs:
         with:
           # Pinned: "latest" moves to new major versions that the action may not
           # support. The binary must be built with a Go version >= the one in go.mod
-          # (v2.5 is built with Go 1.25).
-          version: v2.5
+          # (v2.15 is built with Go 1.27).
+          version: v2.15
 
   terraform:
     name: Terraform examples format

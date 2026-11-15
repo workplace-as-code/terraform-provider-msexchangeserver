@@ -83,7 +83,7 @@ func (r *identityResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 		var meta resource.MetadataResponse
 		r.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "msexchangeserver"}, &meta)
 		resp.Diagnostics.AddError("Not available on an Edge Transport server",
-			fmt.Sprintf("%s manages an organization setting that Edge Transport servers do not have. Use it with a provider block whose role is \"Mailbox\".", meta.TypeName))
+			fmt.Sprintf("%s is not available on Edge Transport servers. Use it with a provider block whose role is \"Mailbox\".", meta.TypeName))
 		return
 	}
 	if m, ok := r.Resource.(resource.ResourceWithModifyPlan); ok {
