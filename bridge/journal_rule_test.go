@@ -30,6 +30,15 @@ function Get-JournalRule {
     param([string]$Identity)
     [pscustomobject]@{ Name = $Identity; Scope = "Global"; Enabled = $false; JournalEmailAddress = "journal@contoso.com" }
 }
+# The first removal fails as a busy server does; the next one succeeds.
+$global:RemoveCalls = 0
+function Remove-JournalRule {
+    param([string]$Identity, $Confirm)
+    $global:RemoveCalls++
+    Write-StubCall "Remove-JournalRule Confirm=$Confirm"
+    if ($global:RemoveCalls -eq 1) { throw "The server is temporarily unavailable." }
+}
+function Start-Sleep { param([int]$Seconds) }
 `
 
 // runJournalRule runs journal_rule.ps1 with the stub and returns the calls it made.
@@ -82,5 +91,13 @@ func TestJournalRuleUpdateTogglesWithEnableDisable(t *testing.T) {
 	calls, _ := runJournalRule(t, "Update", `{"Scope":"External","Enabled":true}`)
 	if !strings.Contains(calls, "Set-JournalRule Scope=External") || !strings.Contains(calls, "Enable-JournalRule Confirm=False") {
 		t.Errorf("calls:\n%s\nwant Set-JournalRule for the scope, then Enable-JournalRule -Confirm:$false", calls)
+	}
+}
+
+// A removal rejected by a busy server is sent again, like the other writes.
+func TestJournalRuleDeleteRetriesTransientErrors(t *testing.T) {
+	calls, _ := runJournalRule(t, "Delete", `{}`)
+	if n := strings.Count(calls, "Remove-JournalRule Confirm=False"); n != 2 {
+		t.Errorf("calls:\n%s\nwant Remove-JournalRule -Confirm:$false sent twice, got %d", calls, n)
 	}
 }

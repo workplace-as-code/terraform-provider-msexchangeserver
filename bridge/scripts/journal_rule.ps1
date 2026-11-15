@@ -68,7 +68,7 @@ try {
 
         "Delete" {
             try {
-                Remove-JournalRule -Identity $Identity @BridgeNoConfirm
+                Invoke-BridgeRetry { Remove-JournalRule -Identity $Identity @BridgeNoConfirm }
             } catch {
                 if (-not (Test-BridgeNotFound $_.Exception.Message)) { throw }
             }
